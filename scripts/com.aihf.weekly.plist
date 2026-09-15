@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent template for the weekly loop (macOS). Replace the placeholders:
+    __HOME__        your home directory, e.g. /Users/you  (launchd does not expand ~)
+    __POETRY_BIN__  the directory containing poetry: $(dirname "$(command -v poetry)")
+  Then:
+    cp scripts/com.aihf.weekly.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.aihf.weekly.plist
+    launchctl kickstart -k gui/$(id -u)/com.aihf.weekly   # run once now
+  Runs ~/.hedge-fund/weekly.sh (the wrapper that points at this checkout)
+  every Monday at 08:00 local time; output lands in ~/.hedge-fund/logs/.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.aihf.weekly</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__HOME__/.hedge-fund/weekly.sh</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>1</integer>
+        <key>Hour</key>
+        <integer>8</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>__POETRY_BIN__:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>__HOME__/.hedge-fund/logs/launchd.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.hedge-fund/logs/launchd.err.log</string>
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

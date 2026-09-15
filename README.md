@@ -111,6 +111,8 @@ Claude models — `claude-fable-5-1` (the default), Opus 5, Sonnet 5, and any un
 
 Because the universes are re-selected weekly from a current screen, a name can enter or leave between runs; the ledger keeps every verdict ever made regardless.
 
+To run it unattended on macOS, `scripts/com.aihf.weekly.plist` is a LaunchAgent template: fill in `__HOME__` and `__POETRY_BIN__` (the directory `command -v poetry` lives in), copy it to `~/Library/LaunchAgents/`, and `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.aihf.weekly.plist`. It runs `~/.hedge-fund/weekly.sh` every Monday at 08:00 and writes to `~/.hedge-fund/logs/launchd.out.log` and `launchd.err.log`; `launchctl kickstart -k gui/$(id -u)/com.aihf.weekly` runs it once immediately. The wrapper at `~/.hedge-fund/weekly.sh` exports `AIHF_REPO` and execs `scripts/weekly.sh`, so the repo script is the only copy.
+
 ## How to Contribute
 
 1. Fork the repository
