@@ -7,10 +7,11 @@ Finviz's Screener API is the screener URL with ``screener`` replaced by
 
 Two honesty notes, both deliberate:
 
-- The filter TOKENS in the presets below are verified Finviz filter ids; the
-  numeric THRESHOLDS in them (ROE over 15, gross margin over 40, ...) are
+- The filter TOKENS in the presets below are verified live (KNOWN_TOKENS);
+  the numeric THRESHOLDS in them (ROE over 15, gross margin over 40, ...) are
   editorial choices, meant to be tuned for candidate count, not a published
-  method.
+  method. Finviz applies one value per filter key and ignores unknown tokens
+  without complaint, so the tests forbid duplicate keys and unlisted tokens.
 - Finviz values are a CURRENT snapshot. This module selects a universe; it
   never feeds the analysts, who reason point-in-time from EDGAR filings.
   Composing today's screen with a historical backtest is a mild look-ahead
@@ -53,12 +54,58 @@ USER_AGENT = "aihf universe module (https://github.com/virattt/ai-hedge-fund)"
 BASE = "geo_usa,ind_stocksonly,cap_midover,ipodate_more5,sh_avgvol_o500,sh_price_o5"
 PRESETS = {
     "quality": BASE + ",fa_roe_o15,fa_grossmargin_o40,fa_debteq_u0.5,fa_pfcf_u50,fa_curratio_o1.5",
-    "value": BASE + ",fa_pe_u15,fa_pe_profitable,fa_pb_u2,fa_debteq_u0.5,fa_curratio_o1.5",
-    "garp": BASE + ",fa_epsqoq_o10,fa_salesqoq_o10,fa_eps5years_pos,fa_sales5years_pos,fa_pe_u25,fa_pe_profitable",
+    "value": BASE + ",fa_pe_u15,fa_pb_u2,fa_debteq_u0.5,fa_curratio_o1.5",
+    "garp": BASE + ",fa_epsqoq_o10,fa_salesqoq_o10,fa_eps5years_pos,fa_sales5years_pos,fa_pe_u25",
     "bearish": BASE + ",fa_debteq_o1,fa_opermargin_neg,fa_curratio_u1,fa_roa_neg",
     # Schloss territory: below book, single-digit-ish earnings, clean balance sheet.
-    "deep_value": BASE + ",fa_pe_u12,fa_pe_profitable,fa_pb_u1,fa_debteq_u0.5,fa_curratio_o1.5",
+    "deep_value": BASE + ",fa_pe_u15,fa_pb_u1,fa_debteq_u0.5,fa_curratio_o1.5",
 }
+
+# Filter tokens verified live (each changes the row count against BASE alone;
+# probed 2026-09-15). Finviz ignores an unknown token silently — fa_pe_u12,
+# say, does nothing — so a preset may only use tokens listed here; the tests
+# enforce it. Tokens are keyed by the text before their last underscore
+# (fa_pe_u15 and fa_pe_profitable are both values of fa_pe) and the LAST one
+# wins, so a preset may carry at most one token per key.
+KNOWN_TOKENS = frozenset(
+    {
+        # universe
+        "geo_usa",
+        "ind_stocksonly",
+        "cap_midover",
+        "ipodate_more5",
+        "sh_avgvol_o500",
+        "sh_price_o5",
+        # valuation
+        "fa_pe_u10",
+        "fa_pe_u15",
+        "fa_pe_u25",
+        "fa_pe_profitable",
+        "fa_pb_u1",
+        "fa_pb_u2",
+        "fa_pfcf_u50",
+        # profitability and growth
+        "fa_roe_o15",
+        "fa_roa_neg",
+        "fa_grossmargin_o40",
+        "fa_opermargin_neg",
+        "fa_epsqoq_o10",
+        "fa_salesqoq_o10",
+        "fa_eps5years_pos",
+        "fa_sales5years_pos",
+        # balance sheet
+        "fa_debteq_u0.5",
+        "fa_debteq_o1",
+        "fa_curratio_o1.5",
+        "fa_curratio_u1",
+    }
+)
+
+
+def token_key(token: str) -> str:
+    """The Finviz filter a token belongs to: the text before its last underscore."""
+    return token.rsplit("_", 1)[0]
+
 
 _MEMO: dict[str, tuple[float, list[str]]] = {}
 _MEMO_LOCK = threading.Lock()

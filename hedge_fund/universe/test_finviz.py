@@ -12,9 +12,11 @@ from hedge_fund.universe.finviz import (
     fetch,
     FINVIZ_TOKEN_ENV,
     FinvizError,
+    KNOWN_TOKENS,
     parse,
     PRESETS,
     resolve,
+    token_key,
 )
 
 CSV = "No.,Ticker\r\n1,AAPL\r\n2,msft\r\n3,\r\n4,GOOGL\r\n"
@@ -54,7 +56,31 @@ def test_missing_token_raises_naming_the_variable(monkeypatch, tmp_path):
 def test_presets_all_start_with_base():
     assert set(PRESETS) == {"quality", "value", "garp", "bearish", "deep_value"}
     assert all(f.startswith(BASE + ",") for f in PRESETS.values())
-    assert PRESETS["deep_value"] == BASE + ",fa_pe_u12,fa_pe_profitable,fa_pb_u1,fa_debteq_u0.5,fa_curratio_o1.5"
+    assert PRESETS["deep_value"] == BASE + ",fa_pe_u15,fa_pb_u1,fa_debteq_u0.5,fa_curratio_o1.5"
+
+
+@pytest.mark.parametrize("name", sorted(PRESETS))
+def test_preset_uses_one_token_per_finviz_key(name):
+    """fa_pe_u15 and fa_pe_profitable are both values of fa_pe; Finviz keeps
+    the last one, silently dropping the cap. A preset may carry one per key."""
+    tokens = PRESETS[name].split(",")
+    keys = [token_key(t) for t in tokens]
+    duplicates = sorted({k for k in keys if keys.count(k) > 1})
+    assert not duplicates, f"{name}: more than one token for {duplicates}"
+
+
+@pytest.mark.parametrize("name", sorted(PRESETS))
+def test_preset_uses_only_known_tokens(name):
+    """Finviz ignores an unknown token (fa_pe_u12 did nothing); every preset
+    token must be one verified live and listed in KNOWN_TOKENS."""
+    unknown = sorted(set(PRESETS[name].split(",")) - KNOWN_TOKENS)
+    assert not unknown, f"{name}: unverified tokens {unknown}"
+
+
+def test_token_key_splits_on_the_last_underscore():
+    assert token_key("fa_pe_u15") == token_key("fa_pe_profitable") == "fa_pe"
+    assert token_key("fa_debteq_u0.5") == "fa_debteq"
+    assert token_key("sh_avgvol_o500") == "sh_avgvol"
     assert resolve("value") == ("value", PRESETS["value"])
     assert resolve("geo_usa,cap_midover") == (None, "geo_usa,cap_midover")
 
