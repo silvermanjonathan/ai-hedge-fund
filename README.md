@@ -81,6 +81,10 @@ poetry run aihf
 poetry run pytest hedge_fund
 ```
 
+### Analysts
+
+Five personas reason as named investors — Buffett, Munger, Graham, Lynch, Druckenmiller (stylized approximations, not the individuals, not endorsements) — plus the `pead` quant model. Thirteen more are written as **schools, not impersonations**: each prompt is "an analyst applying X's published framework", carries a scope note on what its real-world method uses that the snapshot cannot supply, and names the school in its reasoning voice. Long-biased: `fisher`, `greenblatt` (Magic Formula), `fundsmith`, `pabrai` (Dhandho), `damodaran`, `klarman`, `schloss`, `dreman` (contrarian), `akre`, `quality_compounder` (a composite). Bearish or neutral lenses, because everything else is long-biased: `chanos` (forensic short), `earnings_quality_skeptic` (a composite), `dalio_resilience` (Dalio-*inspired*; he publishes no stock-selection method). Library strategies that staff them: `quality-compounders`, `contrarian-value`, `magic-formula`, `forensic-short`.
+
 ### Anthropic models use the SDK directly
 
 Claude models — `claude-fable-5-1` (the default), Opus 5, Sonnet 5, and any unlisted `claude-*` id — go through the official `anthropic` SDK rather than LangChain: the API enforces the analyst JSON schema as structured output, the persona system prompt carries a prompt-cache breakpoint, and adaptive thinking is steered by effort. Every other provider stays on LangChain.

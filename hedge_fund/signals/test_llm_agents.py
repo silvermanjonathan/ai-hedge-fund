@@ -231,6 +231,29 @@ def test_llm_personas_share_the_contract(tmp_path):
         assert '"signal"' in prompt and '"confidence"' in prompt  # the schema
 
 
+SCHOOLS = [
+    "akre", "chanos", "dalio_resilience", "damodaran", "dreman", "earnings_quality_skeptic",
+    "fisher", "fundsmith", "greenblatt", "klarman", "pabrai", "quality_compounder", "schloss",
+]
+
+
+@pytest.mark.parametrize("slug", SCHOOLS)
+def test_school_personas_keep_the_school_framing(tmp_path, slug):
+    """A school is "an analyst applying X's framework": it carries a scope
+    note about what the snapshot cannot supply, ends with the common hard
+    rules, and never opens as a named person."""
+    import re
+
+    from hedge_fund.signals import ALPHA_MODEL_REGISTRY
+
+    prompt = ALPHA_MODEL_REGISTRY[slug](llm=FakeLLM(), cache=PromptCache(tmp_path / "llm")).get_system_prompt()
+    assert "Scope note" in prompt
+    assert "Reason ONLY from the data provided" in prompt
+    assert prompt.startswith("You are an analyst")
+    assert re.search(r"You are [A-Z]", prompt) is None  # never "You are <Person>"
+    assert "in the voice of a" in prompt or "in the voice of an" in prompt  # the school, not a person
+
+
 # ---------------------------------------------------------------------------
 # extract_json
 # ---------------------------------------------------------------------------

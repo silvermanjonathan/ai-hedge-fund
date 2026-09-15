@@ -1,0 +1,13 @@
+# Magic formula — discretionary, long-biased, mechanical in spirit.
+# Greenblatt leads (double blend weight): cheap and good, together;
+# Damodaran checks that the growth behind the multiple is actually worth
+# paying for. Edge claimed: the ranking works because it is boring.
+name: magic-formula
+display_name: Magic Formula
+models:
+  - name: greenblatt
+    weight: 2.0
+  - name: damodaran
+blend:
+  method: conviction_weighted
+  gross_target: 1.0

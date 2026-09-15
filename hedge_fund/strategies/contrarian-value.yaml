@@ -1,0 +1,15 @@
+# Contrarian value — discretionary, long-biased, patient.
+# Dreman leads (double blend weight); Schloss, Klarman, and Pabrai insist on
+# the balance sheet behind the cheapness. Edge claimed: the out-of-favor
+# are over-punished, and a sound balance sheet lets you wait it out.
+name: contrarian-value
+display_name: Contrarian Value
+models:
+  - name: dreman
+    weight: 2.0
+  - name: schloss
+  - name: klarman
+  - name: pabrai
+blend:
+  method: conviction_weighted
+  gross_target: 1.0

@@ -1,0 +1,21 @@
+# Forensic short — discretionary, short-biased: the desk's hedge.
+# Chanos leads (double blend weight); the earnings-quality skeptic and the
+# Dalio-inspired resilience lens look for the same stress from other angles.
+# Edge claimed: earnings that outrun cash, fading margins, and rising
+# leverage are visible in filings before the multiple admits it.
+#
+# Blend note: this sleeve deliberately does NOT set market_neutral (unlike
+# fundamental-ls). market_neutral demeans convictions across the universe,
+# which would force this pod long its least-bearish names. The plain
+# conviction-weighted blend already turns bearish conviction into negative
+# weight, so a sleeve of shorts is net short; master risk caps each name.
+name: forensic-short
+display_name: Forensic Short
+models:
+  - name: chanos
+    weight: 2.0
+  - name: earnings_quality_skeptic
+  - name: dalio_resilience
+blend:
+  method: conviction_weighted
+  gross_target: 1.0

@@ -16,6 +16,8 @@
   + yfinance prices; every EDGAR call goes through the shared rate limiter
   in hedge_fund/data/edgar.py and needs HEDGE_FUND_SEC_USER_AGENT. Methods a
   source cannot serve raise NotImplementedError, never return empty.
+- New personas are schools ("an analyst applying X's framework"), carry a
+  scope note, and end with the common hard-rules tail copied from buffett.py.
 - Tests live next to the code as test_*.py; fakes, no network.
 - Check: poetry run pytest hedge_fund && poetry run black --check hedge_fund
   && poetry run isort --check-only hedge_fund && poetry run flake8 hedge_fund

@@ -1,0 +1,16 @@
+# Quality compounders — discretionary, long-biased, multi-year horizon.
+# Fundsmith leads (double blend weight); Akre, the quality-compounder
+# composite, and Fisher keep returns, margins, and reinvestment in view.
+# Edge claimed: durable high-return businesses compound faster than the
+# market prices in, if you refuse to overpay.
+name: quality-compounders
+display_name: Quality Compounders
+models:
+  - name: fundsmith
+    weight: 2.0
+  - name: akre
+  - name: quality_compounder
+  - name: fisher
+blend:
+  method: conviction_weighted
+  gross_target: 1.0
