@@ -38,9 +38,11 @@ class FakeSession:
 
 
 @pytest.fixture(autouse=True)
-def token(monkeypatch):
-    monkeypatch.setenv(FINVIZ_TOKEN_ENV, "test-token")
+def token(request, monkeypatch):
+    """A fake token for the offline tests; the gated live test keeps the real one."""
     finviz._MEMO.clear()
+    if "live" not in request.node.name:
+        monkeypatch.setenv(FINVIZ_TOKEN_ENV, "test-token")
 
 
 def test_missing_token_raises_naming_the_variable(monkeypatch, tmp_path):
