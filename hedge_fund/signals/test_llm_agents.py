@@ -6,7 +6,7 @@ import pytest
 
 from hedge_fund.data.client import FDClientError
 from hedge_fund.data.models import FinancialMetrics
-from hedge_fund.llm import PromptCache, extract_json
+from hedge_fund.llm import LLMRefusal, PromptCache, extract_json
 from hedge_fund.llm.client import LLMParseError
 from hedge_fund.models import Signal
 from hedge_fund.signals import BuffettAgent
@@ -105,6 +105,16 @@ def test_llm_error_abstains(tmp_path):
     assert sig.value == 0.0
     assert sig.metadata["abstained"] is True
     assert "timed out" in sig.metadata["abstain_reason"]
+
+
+def test_refusal_abstains_with_reason_refusal(tmp_path):
+    """A refusal is a non-view: abstain, tagged so the record can tell it
+    apart from a transport failure. No fallback model."""
+    agent = _agent(tmp_path, FakeLLM(error=LLMRefusal("declined")))
+    sig = agent.predict("TEST", "2025-01-15", MockDataClient(metrics=_history()))
+    assert sig.value == 0.0
+    assert sig.metadata["abstained"] is True
+    assert sig.metadata["abstain_reason"] == "refusal"
 
 
 def test_insufficient_data_abstains(tmp_path):

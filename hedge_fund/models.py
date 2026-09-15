@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -34,3 +34,20 @@ class QuantSignals(BaseModel):
     date: str
     signals: dict[str, Signal] = Field(default_factory=dict)
     composite_score: float | None = None
+
+
+# ---------------------------------------------------------------------------
+# LLM analyst output
+# ---------------------------------------------------------------------------
+
+class AnalystVerdict(BaseModel):
+    """What an LLM investor agent must answer — the schema every persona
+    prompt spells out, and the one the Anthropic client sends as structured
+    output. Lives here rather than in hedge_fund.signals so hedge_fund.llm
+    can import it without an import cycle. A response is validated against
+    it exactly once, in LLMAgent._parse.
+    """
+
+    signal: Literal["bullish", "bearish", "neutral"]
+    confidence: float = Field(ge=0, le=100, description="0-100")
+    reasoning: str

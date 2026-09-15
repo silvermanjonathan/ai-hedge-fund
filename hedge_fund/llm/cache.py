@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -22,9 +24,16 @@ from hedge_fund.paths import CACHE_DIR
 DEFAULT_CACHE_DIR = CACHE_DIR / "llm"
 
 
-def prompt_key(agent: str, model: str, system: str, user: str) -> str:
-    """Cache key for one (agent, model, prompt) combination."""
+def prompt_key(agent: str, model: str, system: str, user: str, effort: str | None = None) -> str:
+    """Cache key for one (agent, model, prompt) combination.
+
+    *effort*, when given, is part of the key — the same prompt at a
+    different effort is a different decision. None leaves the payload
+    exactly as it always was, so every existing cache file keeps its key.
+    """
     payload = f"{agent}|{model}|{system}|{user}"
+    if effort is not None:
+        payload += f"|{effort}"
     return hashlib.sha256(payload.encode()).hexdigest()[:24]
 
 
@@ -45,4 +54,17 @@ class PromptCache:
         self._dir.mkdir(parents=True, exist_ok=True)
         record = {**record, "created_at": datetime.now(timezone.utc).isoformat()}
         path = self._dir / f"{key}.json"
-        path.write_text(json.dumps(record, indent=2))
+        # Atomic: parallel analysts can produce the same key at the same
+        # moment, and a reader must never see a half-written file. Write
+        # beside the target, then rename over it.
+        fd, tmp = tempfile.mkstemp(dir=self._dir, prefix=f".{key}.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write(json.dumps(record, indent=2))
+            os.replace(tmp, path)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise

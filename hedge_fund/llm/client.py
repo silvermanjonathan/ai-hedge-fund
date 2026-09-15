@@ -7,6 +7,10 @@ Mirrors the DataClient pattern (hedge_fund/data/protocol.py): agents depend on t
 We deliberately do NOT use langchain's structured-output machinery: its
 forced-tool mode breaks on Anthropic reasoning models (v1 carries the same
 workaround). We ask for JSON in the prompt and parse it ourselves.
+
+Anthropic models are the exception to the LangChain route: they go through
+the official SDK (anthropic_client.py), which enforces the JSON schema
+natively. Every other provider stays on ChatLLM below.
 """
 
 from __future__ import annotations
@@ -24,7 +28,9 @@ from hedge_fund.llm.registry import (
     provider_for,
 )
 
-DEFAULT_MODEL = "claude-sonnet-5"
+DEFAULT_MODEL = "claude-fable-5-1"
+# How hard an Anthropic model thinks: low, medium, high, xhigh, max.
+DEFAULT_EFFORT = "high"
 
 # Called with each piece of text as it arrives. None means don't stream.
 TokenListener = Callable[[str], None] | None
@@ -32,6 +38,11 @@ TokenListener = Callable[[str], None] | None
 
 class LLMParseError(ValueError):
     """The model's response did not contain parseable JSON."""
+
+
+class LLMRefusal(RuntimeError):
+    """The model declined to answer (stop_reason "refusal"). The agent
+    abstains — a refusal is a non-view, never a neutral one."""
 
 
 @runtime_checkable
@@ -88,12 +99,18 @@ def make_llm(
     timeout: float = 60.0,
     max_tokens: int = 4096,
     on_token: TokenListener = None,
-) -> ChatLLM:
+    effort: str | None = None,
+) -> LLMClient:
     """Build the client for a model id, routed by the registry's provider.
 
     The id comes from the caller, else HEDGE_FUND_LLM_MODEL, else DEFAULT_MODEL — the
     same seam the TUI's picker writes to. Raises with the name of the missing
     environment variable, because that is the only thing the user can act on.
+
+    *effort* steers Anthropic models only: the argument, else
+    HEDGE_FUND_LLM_EFFORT, else DEFAULT_EFFORT. *timeout* and *max_tokens*
+    apply to the LangChain providers; the SDK client carries its own,
+    sized for thinking (see anthropic_client.py).
     """
     model = model or os.environ.get("HEDGE_FUND_LLM_MODEL") or DEFAULT_MODEL
     provider = provider_for(model)
@@ -110,9 +127,9 @@ def make_llm(
     api_key = _require_key(provider)
 
     if provider == "Anthropic":
-        from langchain_anthropic import ChatAnthropic
-        chat = ChatAnthropic(model=model, api_key=api_key, timeout=timeout,
-                             max_retries=1, max_tokens=max_tokens)
+        from hedge_fund.llm.anthropic_client import AnthropicLLM
+        effort = effort or os.environ.get("HEDGE_FUND_LLM_EFFORT") or DEFAULT_EFFORT
+        return AnthropicLLM(model, api_key=api_key, on_token=on_token, effort=effort)
     elif provider == "OpenAI":
         from langchain_openai import ChatOpenAI
         chat = ChatOpenAI(model=model, api_key=api_key, timeout=timeout,
@@ -141,12 +158,6 @@ def make_llm(
         raise ValueError(f"Unhandled provider {provider}")
 
     return ChatLLM(model, chat, on_token)
-
-
-def AnthropicLLM(model: str | None = None, **kwargs) -> ChatLLM:  # noqa: N802
-    """Back-compat shim: v2 was Anthropic-only, and this name is exported.
-    Prefer make_llm(), which honours whichever model is selected."""
-    return make_llm(model or DEFAULT_MODEL, **kwargs)
 
 
 def _flatten(content, sep: str = "\n") -> str:

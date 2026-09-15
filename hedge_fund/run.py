@@ -82,15 +82,24 @@ def main() -> None:
     )
     parser.add_argument(
         "--model",
-        help="LLM the investor agents reason with, e.g. claude-opus-5 "
+        help="LLM the investor agents reason with, e.g. claude-fable-5-1 "
         "(default: HEDGE_FUND_LLM_MODEL env, else the built-in default); quant models "
         "ignore it",
+    )
+    parser.add_argument(
+        "--effort",
+        choices=["low", "medium", "high", "xhigh", "max"],
+        default=None,
+        help="how hard Anthropic models think (default: HEDGE_FUND_LLM_EFFORT env, "
+        "else high); other providers ignore it",
     )
     parser.add_argument("--out", help="also write the record JSON to this file")
     args = parser.parse_args()
 
     if args.model:
         os.environ["HEDGE_FUND_LLM_MODEL"] = args.model
+    if args.effort:
+        os.environ["HEDGE_FUND_LLM_EFFORT"] = args.effort
 
     if args.mandate is None:
         # The interactive experience is the Textual app. Import it lazily so

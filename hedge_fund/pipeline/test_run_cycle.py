@@ -160,6 +160,33 @@ def test_deterministic_and_json_round_trips():
     assert CycleRecord.model_validate_json(first.model_dump_json()) == first
 
 
+def test_parallel_analysts_produce_the_serial_record(monkeypatch):
+    """The fan-out is invisible in the record: three workers and one worker
+    yield the same CycleRecord, signal order included."""
+    def make():
+        spec = _spec(strategies=[
+            {"name": "s1", "models": [{"name": "a"}, {"name": "b"}]},
+            {"name": "s2", "models": [{"name": "c"}]},
+        ])
+        fund = Fund(spec, models={
+            "s1": [FakeAnalyst("a", views={"AAPL": 1.0, "MSFT": -0.5}),
+                   FakeAnalyst("b", views={"NVDA": 0.75})],
+            "s2": [FakeAnalyst("c", views={"MSFT": 0.25}, abstain=False)],
+        })
+        return run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0),
+                         FakeDataClient(CLOSES), UNIVERSE)
+
+    monkeypatch.setenv("HEDGE_FUND_LLM_WORKERS", "1")
+    serial = make()
+    monkeypatch.setenv("HEDGE_FUND_LLM_WORKERS", "3")
+    parallel = make()
+
+    assert parallel == serial
+    assert parallel.model_dump_json() == serial.model_dump_json()
+    order = [(s.ticker, s.model_name) for s in parallel.strategies[0].signals]
+    assert order == [(t, m) for t in UNIVERSE for m in ("a", "b")]
+
+
 def test_second_cycle_rebalances_not_restarts():
     analyst = FakeAnalyst("a", views={"AAPL": 1.0})
     fund = Fund(_spec(max_position_pct=1.0), models={"solo": [analyst]})

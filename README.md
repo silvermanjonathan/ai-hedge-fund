@@ -79,6 +79,16 @@ poetry run aihf
 poetry run pytest hedge_fund
 ```
 
+### Anthropic models use the SDK directly
+
+Claude models — `claude-fable-5-1` (the default), Opus 5, Sonnet 5, and any unlisted `claude-*` id — go through the official `anthropic` SDK rather than LangChain: the API enforces the analyst JSON schema as structured output, the persona system prompt carries a prompt-cache breakpoint, and adaptive thinking is steered by effort. Every other provider stays on LangChain.
+
+- `--effort low|medium|high|xhigh|max` (or `HEDGE_FUND_LLM_EFFORT`) sets how hard the model thinks; the default is `high`. A mandate can pin it per model with `params: {effort: medium}`.
+- `HEDGE_FUND_LLM_WORKERS` (default 4) is how many analyst calls run at once within a cycle; `1` runs them serially, with an identical record.
+- Fable 5.1 is the most expensive tier. The disk cache under `~/.hedge-fund/cache/llm/` is what keeps backtests cheap: an unchanged snapshot never pays for a second call.
+- A refusal (`stop_reason: "refusal"`) makes the agent abstain, like any other LLM failure. There is no fallback model.
+- Each call logs model, effort, stop reason, and token counts — including cache reads and writes — at INFO.
+
 ## How to Contribute
 
 1. Fork the repository

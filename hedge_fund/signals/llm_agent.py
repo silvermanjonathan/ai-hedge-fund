@@ -15,7 +15,7 @@ all the machinery; a persona is just a name + a system prompt:
 Failure contract (locked decisions):
 - Data-layer errors PROPAGATE (fail loud — a broken snapshot must never
   silently become a neutral view).
-- LLM call/parse failures ABSTAIN: Signal(value=0.0, metadata.abstained=True).
+- LLM call/parse/refusal failures ABSTAIN: Signal(value=0.0, metadata.abstained=True).
 - Every LLM decision persists its exact prompt + response (via PromptCache),
   and an unchanged snapshot never pays for a second LLM call.
 """
@@ -26,8 +26,8 @@ import logging
 
 from hedge_fund.data.protocol import DataClient
 from hedge_fund.features.snapshot import FundamentalsSnapshot, InsufficientData, build_snapshot
-from hedge_fund.llm import LLMClient, PromptCache, extract_json, make_llm, prompt_key
-from hedge_fund.models import Signal
+from hedge_fund.llm import LLMClient, LLMRefusal, PromptCache, extract_json, make_llm, prompt_key
+from hedge_fund.models import AnalystVerdict, Signal
 from hedge_fund.signals.base import AlphaModel
 
 logger = logging.getLogger(__name__)
@@ -43,8 +43,15 @@ class LLMAgent(AlphaModel):
         self,
         llm: LLMClient | None = None,
         cache: PromptCache | None = None,
+        effort: str | None = None,
     ) -> None:
-        self._llm = llm if llm is not None else make_llm()
+        # A mandate steers effort per model via `params: {effort: medium}`
+        # (Fund builds staff with ALPHA_MODEL_REGISTRY[name](**params)). It
+        # is part of the cache key only when set: the same prompt at a
+        # different effort is a different decision, and None leaves every
+        # existing cache file keyed as it was.
+        self._effort = effort
+        self._llm = llm if llm is not None else make_llm(effort=effort)
         self._cache = cache if cache is not None else PromptCache()
 
     # ------------------------------------------------------------------
@@ -60,7 +67,7 @@ class LLMAgent(AlphaModel):
 
         system = self.get_system_prompt()
         user = self.build_user_prompt(snapshot)
-        key = prompt_key(self.name, self._llm.model, system, user)
+        key = prompt_key(self.name, self._llm.model, system, user, effort=self._effort)
 
         cached = self._cache.get(key)
         if cached is not None and "parsed" in cached:
@@ -68,6 +75,9 @@ class LLMAgent(AlphaModel):
 
         try:
             response = self._llm.complete(system, user)
+        except LLMRefusal as exc:
+            logger.warning("%s refused for %s@%s: %s", self.name, ticker, date, exc)
+            return self._abstain(ticker, date, "refusal")
         except Exception as exc:
             logger.warning("%s LLM call failed for %s@%s: %s", self.name, ticker, date, exc)
             return self._abstain(ticker, date, f"LLM call failed: {exc}")
@@ -120,18 +130,19 @@ class LLMAgent(AlphaModel):
     # ------------------------------------------------------------------
 
     def _parse(self, response: str) -> dict:
-        """Extract + validate {signal, confidence, reasoning}."""
+        """Extract + validate {signal, confidence, reasoning}.
+
+        The single validation point for every provider: AnalystVerdict is
+        also the schema the Anthropic client sends, but the API's guarantee
+        is not relied on here — a LangChain provider's answer gets the same
+        check. Signal is lowercased first so a "Bullish" still parses.
+        """
         data = extract_json(response)
-        signal = str(data.get("signal", "")).lower()
-        if signal not in _SIGNAL_TO_SIGN:
-            raise ValueError(f"invalid signal {data.get('signal')!r}")
-        confidence = float(data.get("confidence", 0))
-        if not 0 <= confidence <= 100:
-            raise ValueError(f"confidence out of range: {confidence}")
+        verdict = AnalystVerdict.model_validate({**data, "signal": str(data.get("signal", "")).lower()})
         return {
-            "signal": signal,
-            "confidence": confidence,
-            "reasoning": str(data.get("reasoning", "")),
+            "signal": verdict.signal,
+            "confidence": verdict.confidence,
+            "reasoning": verdict.reasoning,
         }
 
     def _to_signal(

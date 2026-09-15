@@ -19,6 +19,11 @@ exclude = [
 [tool.poetry.dependencies]
 python = "^3.11"
 langchain-anthropic = "0.3.5"
+# Direct: Anthropic models use the SDK (hedge_fund/llm/anthropic_client.py).
+# 0.120.2 is the floor that has output_config (effort + json_schema format),
+# adaptive thinking, and the "refusal" stop reason; <1 is what
+# langchain-anthropic 0.3.5 allows.
+anthropic = ">=0.120.2,<1"
 langchain-openai = "^0.3.5"
 langchain-deepseek = "^0.1.2"
 langchain-google-genai = "^2.0.11"
