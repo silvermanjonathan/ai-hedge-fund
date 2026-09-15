@@ -6,7 +6,9 @@
 # The two universes are re-selected each week from current Finviz values.
 set -euo pipefail
 
-REPO=/Users/jonathansilverman/Projects/ai-hedge-fund
+# The checkout: AIHF_REPO if set (the ~/.hedge-fund wrapper sets it), else this
+# script's own parent directory when run from the repo.
+REPO=${AIHF_REPO:-$(cd "$(dirname "$0")/.." && pwd)}
 HOME_DIR="$HOME/.hedge-fund"
 DATE=$(date +%F)
 LOG="$HOME_DIR/logs/weekly-$DATE.log"

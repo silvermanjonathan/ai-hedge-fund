@@ -107,7 +107,7 @@ Claude models — `claude-fable-5-1` (the default), Opus 5, Sonnet 5, and any un
 
 - **The ledger** (`aihf-ledger ingest`) logs each distinct verdict once — identity is (school, ticker, snapshot hash) — with the close on the day it was first made and SPY the same day. A school re-reasons only when a filing changes, so a week with no new filings costs nothing: every verdict is a cache hit and the ledger adds no rows.
 - **The scorecard** (`aihf-ledger scorecard`) grades each school per horizon (21, 63, 126 trading days) on excess return over SPY signed by the call, and against the equal-weight return of the names it saw that day. Below 20 scored calls it reads `provisional`; nothing is old enough to score until the first horizon elapses.
-- **The playbook** (`aihf-ledger candidates`) combines the latest verdicts per ticker, restricted to schools reasoning on the same filing, through a few rules (consensus, contrarian, `resilience_confirmed` = resilient balance sheet plus schools bullish, and a forensic warning tag). The output is a list for review, written to `~/.hedge-fund/ledger/candidates-<date>.csv`. It is not orders and not advice.
+- **The playbook** (`aihf-ledger candidates`) combines the latest verdicts per ticker, restricted to schools reasoning on the same filing, through a few rules (consensus, contrarian, `resilience_confirmed` = resilient balance sheet plus schools bullish, and a forensic warning tag). The output is a list for review, written to `~/.hedge-fund/ledger/candidates-<date>.csv`. It is not orders, not advice.
 
 Because the universes are re-selected weekly from a current screen, a name can enter or leave between runs; the ledger keeps every verdict ever made regardless.
 
