@@ -5,6 +5,7 @@ screener reflects today. So this package only picks tickers; the result is
 composed into a run with --tickers, never fed to a model.
 """
 
+from hedge_fund.universe.edgar_check import edgar_filter, files_domestic_reports
 from hedge_fund.universe.finviz import (
     BASE,
     EXPORT_URL,
@@ -15,4 +16,4 @@ from hedge_fund.universe.finviz import (
     resolve,
 )
 
-__all__ = ["BASE", "EXPORT_URL", "FINVIZ_TOKEN_ENV", "PRESETS", "FinvizError", "fetch", "resolve"]
+__all__ = ["BASE", "EXPORT_URL", "FINVIZ_TOKEN_ENV", "PRESETS", "FinvizError", "edgar_filter", "fetch", "files_domestic_reports", "resolve"]
