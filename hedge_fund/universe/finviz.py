@@ -19,7 +19,8 @@ Two honesty notes, both deliberate:
 
 Results are cached under ~/.hedge-fund/cache/finviz for a day, keyed by the
 filter string, with the atomic-write pattern of hedge_fund/data/edgar.py.
-Fail-loud: a non-200 raises FinvizError; an empty export is an empty list.
+Fail-loud: a non-200 or an empty body (throttling) raises FinvizError; a
+header-only export — a screen that matched nothing — is an empty list.
 """
 
 from __future__ import annotations
@@ -148,9 +149,14 @@ def download(filters: str, *, auth: str, session=None, timeout: float = 30.0):
 
 
 def parse(text: str) -> list[str]:
-    """Tickers from an export CSV, by the "Ticker" header. Empty body -> []."""
+    """Tickers from an export CSV, by the "Ticker" header.
+
+    A header row with no data rows is a screen that matched nothing: [].
+    No header at all is not an answer — Finviz returns an empty 200 body
+    when it throttles — so that raises rather than reading as "no matches".
+    """
     if not text.strip():
-        return []
+        raise FinvizError("empty response, likely throttled")
     reader = csv.DictReader(io.StringIO(text))
     if not reader.fieldnames or "Ticker" not in reader.fieldnames:
         raise FinvizError(f"export has no Ticker column (header: {reader.fieldnames}); a login page or a changed column id")

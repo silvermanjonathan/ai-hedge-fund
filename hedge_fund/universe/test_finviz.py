@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import time
 
 import pytest
 
@@ -102,8 +103,20 @@ def test_csv_parses_by_header_and_respects_limit(tmp_path):
     assert parse("Ticker,No.\r\nAAPL,1\r\n") == ["AAPL"]  # column order does not matter
 
 
-def test_empty_body_returns_empty_and_bad_header_raises(tmp_path):
-    assert fetch("value", session=FakeSession(_Resp(text="")), cache_dir=tmp_path) == []
+def test_header_only_export_means_no_matches(tmp_path):
+    assert fetch("value", session=FakeSession(_Resp(text="No.,Ticker\r\n")), cache_dir=tmp_path) == []
+
+
+def test_empty_body_raises_as_throttling(tmp_path):
+    """A 200 with no header at all is what Finviz sends when it throttles;
+    it must never read as an empty screen."""
+    with pytest.raises(FinvizError, match="empty response, likely throttled"):
+        fetch("value", session=FakeSession(_Resp(text="")), cache_dir=tmp_path)
+    with pytest.raises(FinvizError, match="empty response"):
+        parse("   \n")
+
+
+def test_bad_header_raises(tmp_path):
     with pytest.raises(FinvizError, match="Ticker column"):
         fetch("garp", session=FakeSession(_Resp(text="<html>login</html>")), cache_dir=tmp_path)
 
@@ -135,6 +148,7 @@ pytestmark_live = pytest.mark.skipif(
 
 @pytestmark_live
 def test_live_quality_preset_is_a_direct_200(tmp_path):
+    time.sleep(2)  # the only place we make more than one Finviz call per session; be polite
     resp = finviz.download(PRESETS["quality"], auth=finviz.token())
     assert resp.status_code == 200 and resp.history == []  # no redirect
     tickers = parse(resp.text)
