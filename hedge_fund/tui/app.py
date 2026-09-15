@@ -58,7 +58,7 @@ from textual.widgets.selection_list import Selection
 from hedge_fund.backtesting import FundBacktestResult, backtest_fund, rebalance_grid
 from hedge_fund.backtesting.fund import _PERIODS_PER_YEAR
 from hedge_fund.brokers import Fill, SimBroker
-from hedge_fund.data import CachedDataClient, FDClient
+from hedge_fund.data import SEC_USER_AGENT_ENV, missing_data_key, open_data_client, provider_label, unsupported_model_names
 from hedge_fund.fund import (
     Fund,
     FundSpec,
@@ -214,32 +214,38 @@ class HomeScreen(Screen):
 
 
 class KeyPromptScreen(ModalScreen[bool]):
-    """Ask for the one key a provider needs, and offer to remember it.
+    """Ask for the one credential a provider needs, and offer to remember it.
 
-    Returns True if a key is now in the environment. The input is masked and
-    the value is never echoed back — the confirmation shows a masked form.
+    Returns True if a value is now in the environment. A secret is masked
+    and never echoed back — the confirmation shows a masked form. The SEC's
+    contact User-Agent is not a secret (a name and an email), so it is shown
+    as typed.
     """
 
     BINDINGS = [Binding("escape", "cancel", "cancel")]
 
-    def __init__(self, provider: str, env_var: str) -> None:
+    def __init__(self, provider: str, env_var: str, *, secret: bool = True,
+                 noun: str = "API key", blurb: Text | None = None) -> None:
         super().__init__()
         self._provider = provider
         self._env_var = env_var
+        self._secret = secret
+        self._noun = noun
+        self._blurb = blurb
 
     def compose(self) -> ComposeResult:
         with Vertical(id="keyprompt"):
             yield Static(Text.assemble(
-                (f"{self._provider} API key needed", f"bold {BRIGHT}")),
+                (f"{self._provider} {self._noun} needed", f"bold {BRIGHT}")),
                 id="key-q")
-            yield Static(Text.assemble(
+            yield Static(self._blurb or Text.assemble(
                 ("The fund cannot run without it. Paste it below and it "
                  "is saved to\n", MUTED),
                 (str(ENV_PATH), TEXT),
                 ("\nwhich is owner-read-only and loaded automatically on "
                  "every start.", MUTED)),
                 id="key-blurb")
-            yield Input(password=True, placeholder=self._env_var, id="key-input")
+            yield Input(password=self._secret, placeholder=self._env_var, id="key-input")
             yield Static(Text.assemble(
                 ("enter", f"bold {GREEN}"), ("  save and continue   ", MUTED),
                 ("esc", f"bold {BRIGHT}"), ("  cancel", MUTED)),
@@ -256,11 +262,38 @@ class KeyPromptScreen(ModalScreen[bool]):
             self.notify("No key entered", severity="warning")
             return
         path = save_credential(self._env_var, key)
-        self.notify(f"Saved {self._env_var} ({masked(key)}) to {path}")
+        shown = masked(key) if self._secret else key
+        self.notify(f"Saved {self._env_var} ({shown}) to {path}")
         self.dismiss(True)
 
     def action_cancel(self) -> None:
         self.dismiss(False)
+
+
+_SEC_CONTACT_BLURB = Text.assemble(
+    ("The SEC requires every automated client to identify itself with a "
+     "name and an email, e.g. ", MUTED),
+    ("Jane Doe jane@example.com", TEXT),
+    (". It is sent as the User-Agent on EDGAR requests and saved to\n", MUTED),
+    (str(ENV_PATH), TEXT),
+    ("\nwhich is loaded automatically on every start.", MUTED),
+)
+
+
+def _unsupported_staff(screen, spec) -> bool:
+    """True, after telling the user, if the selected data source cannot
+    feed one of this fund's models. Asked before the run, not inside a
+    worker: the warm loops swallow per-ticker errors by design."""
+    unsupported = unsupported_model_names(_agent_names(spec))
+    if not unsupported:
+        return False
+    screen.notify(
+        f"{spec.name} staffs {', '.join(unsupported)}, which needs earnings "
+        f"history the {provider_label()} source cannot provide. Run with "
+        f"--data fd, or pick another fund.",
+        severity="error", timeout=8,
+    )
+    return True
 
 
 def _demand_run_keys(app, resume) -> bool:
@@ -270,10 +303,13 @@ def _demand_run_keys(app, resume) -> bool:
     this gate so the next missing key is asked for in turn. Ask here, not
     deep inside a worker thread: a run that dies on a missing credential has
     already spent minutes of warming."""
-    if not os.environ.get("FINANCIAL_DATASETS_API_KEY"):
+    env_var = missing_data_key()
+    if env_var:
+        secret = env_var != SEC_USER_AGENT_ENV
         app.push_screen(
-            KeyPromptScreen("Financial Datasets",
-                            "FINANCIAL_DATASETS_API_KEY"),
+            KeyPromptScreen(provider_label(), env_var, secret=secret,
+                            noun="API key" if secret else "contact",
+                            blurb=None if secret else _SEC_CONTACT_BLURB),
             lambda saved: resume() if saved else None)
         return False
     provider = provider_for(os.environ.get("HEDGE_FUND_LLM_MODEL", ""))
@@ -1170,6 +1206,9 @@ class RunScreen(Screen):
         except ValueError:
             self.notify("Enter at least one ticker.", severity="error")
             return
+        if _unsupported_staff(self, self._spec):
+            return
+
         def resume() -> None:
             if _demand_run_keys(self.app, resume):
                 self._begin()
@@ -1226,8 +1265,7 @@ class RunScreen(Screen):
                 # no client and simply runs.
                 model = (cls(llm=make_llm(on_token=desk.feed))
                          if issubclass(cls, LLMAgent) else cls())
-                with FDClient() as raw:
-                    fd = CachedDataClient(raw)
+                with open_data_client() as fd:
                     for ticker in universe:
                         desk.begin(ticker)
                         try:
@@ -1243,9 +1281,8 @@ class RunScreen(Screen):
 
             fund = Fund(spec)
             broker = SimBroker(cash=spec.capital)
-            with FDClient() as raw:
-                record = run_cycle(fund, as_of, broker, CachedDataClient(raw),
-                                   universe)
+            with open_data_client() as fd:
+                record = run_cycle(fund, as_of, broker, fd, universe)
 
             # Receipts, same shape as a backtest's: the run is recoverable,
             # and it's what the fund's history pane reads.
@@ -1741,6 +1778,8 @@ class BacktestScreen(Screen):
             self.query_one("#bt-tickers", Input).focus()
             return
         assert self._spec is not None
+        if _unsupported_staff(self, self._spec):
+            return
 
         def resume() -> None:
             if _demand_run_keys(self.app, resume):
@@ -1770,8 +1809,8 @@ class BacktestScreen(Screen):
              universe: list[str]) -> None:
         app = self.app
         try:
-            with FDClient() as raw:
-                bars = CachedDataClient(raw).get_prices(spec.benchmark, start, end)
+            with open_data_client() as fd:
+                bars = fd.get_prices(spec.benchmark, start, end)
             closes = {b.time[:10]: b.close for b in bars
                       if start <= b.time[:10] <= end}
             if not closes:
@@ -1796,9 +1835,8 @@ class BacktestScreen(Screen):
                 if dwell > 0:
                     time.sleep(dwell)
 
-            with FDClient() as raw:
-                result = backtest_fund(fund, start, end, CachedDataClient(raw),
-                                       universe, on_cycle=tick)
+            with open_data_client() as fd:
+                result = backtest_fund(fund, start, end, fd, universe, on_cycle=tick)
 
             FUNDS_DIR.mkdir(exist_ok=True)
             stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
@@ -1825,8 +1863,7 @@ class BacktestScreen(Screen):
         bar = self.query_one("#warm-progress", ProgressBar)
 
         def prefetch(ticker: str, dates: list[str]) -> None:
-            with FDClient() as raw:  # own client per task (requests isn't shared-safe)
-                fd = CachedDataClient(raw)
+            with open_data_client() as fd:  # own client per task (sessions aren't shared-safe)
                 if has_agents:
                     fd.get_company_facts(ticker)
                 for as_of in dates:
@@ -1855,8 +1892,7 @@ class BacktestScreen(Screen):
         def warm(agent_name: str) -> None:
             who = display[agent_name]
             model = ALPHA_MODEL_REGISTRY[agent_name]()  # own instance per thread
-            with FDClient() as raw:
-                fd = CachedDataClient(raw)
+            with open_data_client() as fd:
                 for as_of in grid:
                     for ticker in universe:
                         app.call_from_thread(
