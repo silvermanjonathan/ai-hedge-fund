@@ -52,8 +52,9 @@ def test_missing_token_raises_naming_the_variable(monkeypatch, tmp_path):
 
 
 def test_presets_all_start_with_base():
-    assert set(PRESETS) == {"quality", "value", "garp", "bearish"}
+    assert set(PRESETS) == {"quality", "value", "garp", "bearish", "deep_value"}
     assert all(f.startswith(BASE + ",") for f in PRESETS.values())
+    assert PRESETS["deep_value"] == BASE + ",fa_pe_u12,fa_pe_profitable,fa_pb_u1,fa_debteq_u0.5,fa_curratio_o1.5"
     assert resolve("value") == ("value", PRESETS["value"])
     assert resolve("geo_usa,cap_midover") == (None, "geo_usa,cap_midover")
 

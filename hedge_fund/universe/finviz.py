@@ -56,6 +56,8 @@ PRESETS = {
     "value": BASE + ",fa_pe_u15,fa_pe_profitable,fa_pb_u2,fa_debteq_u0.5,fa_curratio_o1.5",
     "garp": BASE + ",fa_epsqoq_o10,fa_salesqoq_o10,fa_eps5years_pos,fa_sales5years_pos,fa_pe_u25,fa_pe_profitable",
     "bearish": BASE + ",fa_debteq_o1,fa_opermargin_neg,fa_curratio_u1,fa_roa_neg",
+    # Schloss territory: below book, single-digit-ish earnings, clean balance sheet.
+    "deep_value": BASE + ",fa_pe_u12,fa_pe_profitable,fa_pb_u1,fa_debteq_u0.5,fa_curratio_o1.5",
 }
 
 _MEMO: dict[str, tuple[float, list[str]]] = {}
