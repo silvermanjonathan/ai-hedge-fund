@@ -32,10 +32,17 @@ from hedge_fund.data.models import (
     Price,
 )
 from hedge_fund.data.prices import PriceSource, YFinancePrices
-from hedge_fund.data.xbrl import build_rows, FactBook, point_in_time, shares_outstanding
+from hedge_fund.data.xbrl import (
+    build_rows,
+    FactBook,
+    merge_companyfacts,
+    point_in_time,
+    shares_outstanding,
+)
 
-# (cik, facts version) -> rows, shared across instances (one per TUI thread).
-_ROWS: dict[tuple[int, float], list[FinancialMetrics]] = {}
+# ((cik, facts version), ...) over the succession chain -> rows, shared
+# across instances (one per TUI thread).
+_ROWS: dict[tuple, list[FinancialMetrics]] = {}
 _ROWS_LOCK = threading.Lock()
 _ROWS_MAX = 64
 
@@ -116,7 +123,7 @@ class FreeDataClient:
         cik = self._edgar.cik_for(ticker)
         if cik is None:
             return None
-        facts = self._edgar.company_facts(cik)
+        facts, _ = self._facts(cik)
         if facts is None:
             return None
         as_of = date.fromisoformat(end_date)
@@ -130,12 +137,23 @@ class FreeDataClient:
     # Private helpers
     # ------------------------------------------------------------------
 
+    def _facts(self, cik: int) -> tuple[dict | None, tuple]:
+        """The filer's facts merged with its predecessors' (a reorganised
+        company keeps its history), plus a version key for the memo."""
+        chain = self._edgar.cik_chain(cik)
+        payloads = [self._edgar.company_facts(c) for c in chain]
+        if not any(payloads):
+            return None, ()
+        version = tuple((c, self._edgar.company_facts_version(c)) for c in chain)
+        if len(chain) == 1:
+            return payloads[0], version
+        return merge_companyfacts([p for p in payloads if p]), version
+
     def _rows(self, ticker: str, cik: int) -> list[FinancialMetrics]:
         """All rows for a filer, built once per cached facts payload."""
-        facts = self._edgar.company_facts(cik)
+        facts, key = self._facts(cik)
         if facts is None:
             return []
-        key = (cik, self._edgar.company_facts_version(cik))
         with _ROWS_LOCK:
             rows = _ROWS.get(key)
         if rows is None:

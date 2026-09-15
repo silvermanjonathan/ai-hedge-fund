@@ -329,3 +329,22 @@ def test_rounding_policy():
     row = rows_by_period(rows)["2024-09-30"]
     assert row.market_cap == 1230  # 1234.56 -> 3 significant figures
     assert row.return_on_equity == round(58 / 560, 6)
+
+
+def test_merge_companyfacts_keeps_first_reported_values():
+    from hedge_fund.data.xbrl import merge_companyfacts
+
+    predecessor = synthetic_companyfacts()
+    # The successor reports only 2024-09-30 onward, repeating 2023-09-30 as a comparative (+1).
+    successor = {"cik": 2, "entityName": "Successor", "facts": {"us-gaap": {}, "dei": {}}}
+    for taxonomy in ("us-gaap", "dei"):
+        for tag, body in predecessor["facts"][taxonomy].items():
+            for unit, entries in body["units"].items():
+                kept = [dict(e, accn="succ", filed="2024-11-03", **({"val": e["val"] + 1} if e["end"] == "2023-09-30" else {})) for e in entries if e["end"] >= "2024-09-30" or e["end"] == "2023-09-30"]
+                if kept:
+                    successor["facts"][taxonomy].setdefault(tag, {"units": {}})["units"][unit] = kept
+    merged = merge_companyfacts([successor, predecessor])
+    rows = rows_by_period(build_rows(merged, ticker="T", history=fake_history()))
+    assert "2023-03-31" in rows and "2024-09-30" in rows  # history from both filers
+    assert rows["2023-09-30"].filing_date == "2023-11-03"  # predecessor's original filing, not the comparative
+    assert rows["2024-09-30"].net_margin == approx(58 / 580)

@@ -42,6 +42,12 @@ class FakeEdgar:
     def submissions(self, cik):
         return self._submissions
 
+    def predecessor_cik(self, cik):
+        return None
+
+    def cik_chain(self, cik):
+        return [cik]
+
     def close(self):
         self.closed = True
 
@@ -257,3 +263,24 @@ def test_daily_history_lookback_window():
     history = DailyHistory(closes={date(2024, 1, 2): 10.0})
     assert history.unadjusted_close_on_or_before(date(2024, 1, 9)) == 10.0
     assert history.unadjusted_close_on_or_before(date(2024, 1, 10)) is None
+
+
+def test_predecessor_facts_are_merged_into_the_successor():
+    class SuccessionEdgar(FakeEdgar):
+        def __init__(self):
+            super().__init__(ciks={"XOM": 2})
+            self._payloads = {1: synthetic_companyfacts(), 2: {"cik": 2, "entityName": "Successor", "facts": {"us-gaap": {}, "dei": {}}}}
+
+        def predecessor_cik(self, cik):
+            return 1 if cik == 2 else None
+
+        def cik_chain(self, cik):
+            return [2, 1] if cik == 2 else [cik]
+
+        def company_facts(self, cik):
+            return self._payloads.get(cik)
+
+    client = FreeDataClient(prices=FakePrices(), edgar=SuccessionEdgar())
+    rows = client.get_financial_metrics("XOM", "2025-01-15", limit=20)
+    assert len(rows) >= 4 and rows[0].report_period == "2024-09-30"
+    assert client.get_market_cap("XOM", "2024-11-05") == pytest.approx(2000)

@@ -58,3 +58,12 @@ def test_cik_lookup_and_facts(client):
 def test_googl_multi_class_market_cap_is_sane(client):
     rows = client.get_financial_metrics("GOOGL", "2024-12-31", period="ttm", limit=1)
     assert 1e12 < rows[0].market_cap < 4e12
+
+
+def test_xom_history_follows_the_succession(client):
+    """XOM moved to ExxonMobil Holdings Corp (CIK 2115436) on 2026-07-01; the
+    filer's own XBRL starts there, the history is Exxon Mobil Corp's."""
+    assert client._edgar.predecessor_cik(2115436) == 34088
+    rows = client.get_financial_metrics("XOM", "2026-09-01", period="ttm", limit=20)
+    assert len(rows) >= 8
+    assert rows[0].filing_date <= "2026-09-01" and rows[0].net_margin is not None

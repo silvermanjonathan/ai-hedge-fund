@@ -372,6 +372,25 @@ def build_rows(companyfacts: dict, *, ticker: str, history: DailyHistory | None 
     return rows
 
 
+def merge_companyfacts(payloads: list[dict]) -> dict:
+    """One facts payload from several filers' payloads — a successor and the
+    registrants it succeeded. Entries are concatenated per taxonomy, tag,
+    and unit; first-filed dedup then keeps the original disclosure wherever
+    the successor repeated a predecessor period as a comparative."""
+    merged: dict = {"facts": {}}
+    for payload in payloads:
+        if not payload:
+            continue
+        merged.setdefault("cik", payload.get("cik"))
+        merged.setdefault("entityName", payload.get("entityName"))
+        for taxonomy, tags in payload.get("facts", {}).items():
+            for tag, body in tags.items():
+                target = merged["facts"].setdefault(taxonomy, {}).setdefault(tag, {"units": {}})
+                for unit, entries in body.get("units", {}).items():
+                    target["units"].setdefault(unit, []).extend(entries)
+    return merged
+
+
 def point_in_time(rows: list[FinancialMetrics], end_date: str, limit: int) -> list[FinancialMetrics]:
     """The newest *limit* rows that were public by *end_date* (filing_date <= end_date)."""
     return [r for r in rows if r.filing_date is not None and r.filing_date <= end_date][:limit]
