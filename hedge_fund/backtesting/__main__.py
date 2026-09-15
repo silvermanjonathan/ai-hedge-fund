@@ -10,7 +10,7 @@ import sys
 import time
 from datetime import date
 
-from hedge_fund.data import FDClient
+from hedge_fund.data import make_data_client, unsupported_model_names
 from hedge_fund.backtesting import BacktestEngine
 from hedge_fund.signals import PEADModel
 
@@ -133,8 +133,14 @@ def main() -> None:
     sys.stdout.write(f"  Backtesting PEAD alpha... [0/{n}]")
     sys.stdout.flush()
 
+    if unsupported_model_names(["pead"]):
+        sys.exit(
+            "This needs earnings history with consensus surprises, which the free "
+            "data source cannot provide. Set HEDGE_FUND_DATA=fd (Financial Datasets "
+            "key required) and rerun."
+        )
     trades = []
-    with FDClient() as fd:
+    with make_data_client() as fd:
         for i, ticker in enumerate(TICKERS):
             sys.stdout.write(f"\r  Backtesting PEAD alpha... [{i + 1}/{n}] {ticker:<6}")
             sys.stdout.flush()

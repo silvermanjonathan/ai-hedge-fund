@@ -37,7 +37,7 @@ from rich.console import Console
 
 from hedge_fund.backtesting import backtest_fund
 from hedge_fund.brokers import SimBroker
-from hedge_fund.data import CachedDataClient, FDClient
+from hedge_fund.data import data_source, missing_data_key, open_data_client, unsupported_model_names
 from hedge_fund.fund import Fund, load_spec, normalize_universe
 from hedge_fund.paths import ensure_mandates_dir
 from hedge_fund.pipeline import run_cycle
@@ -93,6 +93,15 @@ def main() -> None:
         help="how hard Anthropic models think (default: HEDGE_FUND_LLM_EFFORT env, "
         "else high); other providers ignore it",
     )
+    parser.add_argument(
+        "--data",
+        choices=["free", "fd"],
+        default=None,
+        help="market data source: free = SEC EDGAR fundamentals + Yahoo Finance "
+        "prices, no data key (needs HEDGE_FUND_SEC_USER_AGENT, the SEC's required "
+        "contact); fd = Financial Datasets (needs FINANCIAL_DATASETS_API_KEY) "
+        "(default: HEDGE_FUND_DATA env, else free)",
+    )
     parser.add_argument("--out", help="also write the record JSON to this file")
     args = parser.parse_args()
 
@@ -100,6 +109,8 @@ def main() -> None:
         os.environ["HEDGE_FUND_LLM_MODEL"] = args.model
     if args.effort:
         os.environ["HEDGE_FUND_LLM_EFFORT"] = args.effort
+    if args.data:
+        os.environ["HEDGE_FUND_DATA"] = args.data
 
     if args.mandate is None:
         # The interactive experience is the Textual app. Import it lazily so
@@ -115,14 +126,31 @@ def main() -> None:
 
     console = Console(stderr=True)  # status + summary on stderr; stdout stays pure JSON
     spec = load_spec(args.mandate)
+
+    # Fail before any network call: the free source cannot feed every model,
+    # and a source without its credential would only die mid-cycle.
+    try:
+        source = data_source()
+    except ValueError as exc:
+        parser.error(str(exc))
+    unsupported = unsupported_model_names(m.name for s in spec.strategies for m in s.models)
+    if unsupported:
+        parser.error(
+            f"--data {source} cannot staff {', '.join(unsupported)}: the free source has "
+            "no earnings history with consensus surprises. Use --data fd, or a mandate "
+            "without it."
+        )
+    env_var = missing_data_key(source)
+    if env_var:
+        parser.error(f"{env_var} is not set and --data {source} needs it; export it or add it to ~/.hedge-fund/.env")
+
     fund = Fund(spec)
 
     if args.backtest:
         start = args.start or (
             _date.fromisoformat(args.date) - timedelta(weeks=_BACKTEST_WEEKS)
         ).isoformat()
-        with FDClient() as raw:
-            fd = CachedDataClient(raw)
+        with open_data_client() as fd:
             with console.status(
                 f"[cyan]{spec.name}: backtesting {start} → {args.date} "
                 f"({spec.rebalance} rebalance vs {spec.benchmark}) "
@@ -144,8 +172,7 @@ def main() -> None:
 
     broker = SimBroker(cash=spec.capital)
 
-    with FDClient() as raw:
-        fd = CachedDataClient(raw)
+    with open_data_client() as fd:
         n_models = sum(len(staff) for _, staff in fund.strategies)
         with console.status(
             f"[cyan]{spec.name}: running one cycle as of {args.date} — "

@@ -38,10 +38,12 @@ aihf
 
 The app asks for keys the first time it needs them and saves them to `~/.hedge-fund/.env` — nothing to configure up front. It needs:
 
-- A [Financial Datasets](https://financialdatasets.ai) API key, for prices, fundamentals, and earnings.
 - One LLM API key for the LLM-powered alpha models. Supported providers: Anthropic, OpenAI, DeepSeek, Google, xAI, Kimi.
+- A data source. The default, `--data free` (or `HEDGE_FUND_DATA=free`), needs no paid key: fundamentals come from [SEC EDGAR](https://www.sec.gov/search-filings/edgar-application-programming-interfaces)'s XBRL company facts and prices from Yahoo Finance via [yfinance](https://github.com/ranaroussi/yfinance) (Yahoo's data is for personal, educational use). The SEC requires every automated client to identify itself, so set `HEDGE_FUND_SEC_USER_AGENT="Your Name you@example.com"` — the app prompts for it. Alternatively `--data fd` uses a [Financial Datasets](https://financialdatasets.ai) API key for prices, fundamentals, and earnings.
 
 Keys exported in your shell always win over the saved file.
+
+The free source has no earnings-surprise data, so the `pead` model (the example mandate's earnings-drift strategy) needs `--data fd`; the CLI says so before running. Its fundamentals are dated by the 10-Q/10-K that first reported them and never restated, which keeps a backtest point-in-time and its LLM cache stable. A Finviz Elite price export could replace yfinance behind the `PriceSource` seam in `hedge_fund/data/prices.py`.
 
 ## How to Run
 
@@ -88,6 +90,10 @@ Claude models — `claude-fable-5-1` (the default), Opus 5, Sonnet 5, and any un
 - Fable 5.1 is the most expensive tier. The disk cache under `~/.hedge-fund/cache/llm/` is what keeps backtests cheap: an unchanged snapshot never pays for a second call.
 - A refusal (`stop_reason: "refusal"`) makes the agent abstain, like any other LLM failure. There is no fallback model.
 - Each call logs model, effort, stop reason, and token counts — including cache reads and writes — at INFO.
+
+### Data sources
+
+`--data free|fd` (or `HEDGE_FUND_DATA`) selects the market data source; `free` is the default. Each source keeps its own disk cache under `~/.hedge-fund/cache/` (`data-free/`, `data/`), and the raw EDGAR and Yahoo payloads are cached beside them with a one-day TTL, so a ticker's facts download once a day. All EDGAR traffic goes through one process-wide rate limiter (8 requests/second, under the SEC's 10) with the required `User-Agent`. Methods the free source cannot serve — news, insider trades, earnings — raise `NotImplementedError` rather than returning empty.
 
 ## How to Contribute
 

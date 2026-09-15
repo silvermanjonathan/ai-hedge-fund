@@ -14,6 +14,7 @@ import pytest
 import requests
 
 from hedge_fund.data import FDClient, FDClientError
+from hedge_fund.data.errors import DataClientError
 
 
 class _FakeResponse:
@@ -202,3 +203,11 @@ def test_financial_metrics_parses_filing_metadata(client):
     assert m.filing_date == "2024-05-02"
     assert m.filing_datetime == "2024-05-02T16:31:00-04:00"
     assert m.report_period == "2024-03-30"
+
+
+def test_fdclienterror_is_a_dataclienterror():
+    """Every provider's failure shares one base, so a caller that wants to
+    name the type can name one for all of them."""
+    err = FDClientError("down", status_code=500, path="/x")
+    assert isinstance(err, DataClientError)
+    assert (err.status_code, err.path) == (500, "/x")
