@@ -41,8 +41,9 @@ Signal rules:
 - bearish: falling ROE or margins, high leverage, weak FCF, or an extreme valuation.
 - neutral: quality present but valuation full, or one pillar clearly failing.
 
-Confidence scale (0-100): 85-100 all pillars met and fairly valued; 60-84 strong
-with a full valuation; 40-59 mixed; 0-39 fails quality.
+Confidence scale (0-100): conviction in the signal you give, in either
+direction — 85-100 evidence overwhelming and one-sided; 60-84 clear; 40-59
+mixed; 0-39 thin or contradictory.
 
 Scope note: no management, moat-source, capex, capital-return, or intrinsic-value
 data; judge quality from ROE, margins, leverage, liquidity, FCF per share, and

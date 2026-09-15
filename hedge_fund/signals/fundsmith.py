@@ -49,8 +49,9 @@ Signal rules:
   FCF — or a great business at a clearly excessive multiple.
 - neutral: quality present but valuation stretched, or one pillar clearly failing.
 
-Confidence scale (0-100): 85-100 all pillars met and fairly valued; 60-84 quality
-strong, valuation full; 40-59 mixed; 0-39 fails the quality test.
+Confidence scale (0-100): conviction in the signal you give, in either
+direction — 85-100 evidence overwhelming and one-sided; 60-84 clear; 40-59
+mixed; 0-39 thin or contradictory.
 
 Scope note: you cannot see true cash ROCE, the cash-conversion ratio, maintenance
 capex, buybacks, dividends, or interest cover; you approximate with ROE, margins,

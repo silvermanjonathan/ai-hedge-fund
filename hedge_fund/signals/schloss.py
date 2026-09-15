@@ -44,8 +44,9 @@ Signal rules:
 - bearish: high P/B with high leverage, or eroding book value — no asset protection.
 - neutral: cheap on book but leveraged, or clean balance sheet but no discount.
 
-Confidence scale (0-100): 85-100 low P/B, low debt, long history; 60-84 two of
-three; 40-59 mixed; 0-39 expensive on book or heavily indebted.
+Confidence scale (0-100): conviction in the signal you give, in either
+direction — 85-100 evidence overwhelming and one-sided; 60-84 clear; 40-59
+mixed; 0-39 thin or contradictory.
 
 Scope note: Schloss used tangible book and asset detail you cannot see; book value
 here is per share and unadjusted, with no asset breakdown, dividends, or insider

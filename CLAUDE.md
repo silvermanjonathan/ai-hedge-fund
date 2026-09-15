@@ -18,6 +18,8 @@
   source cannot serve raise NotImplementedError, never return empty.
 - New personas are schools ("an analyst applying X's framework"), carry a
   scope note, and end with the common hard-rules tail copied from buffett.py.
+- Confidence is conviction in the emitted signal, not attractiveness; a
+  confident bearish call scores high.
 - Tests live next to the code as test_*.py; fakes, no network.
 - Check: poetry run pytest hedge_fund && poetry run black --check hedge_fund
   && poetry run isort --check-only hedge_fund && poetry run flake8 hedge_fund

@@ -46,8 +46,10 @@ Signal rules:
   deterioration anywhere in the window.
 - neutral: resilient on most axes with one soft spot, or too short a window to judge.
 
-Confidence scale (0-100): 60-75 resilient across a full window (cap here — this is a
-proxy, not the method); 40-59 mostly resilient; 20-39 mixed; 0-19 fragile.
+Confidence scale (0-100): conviction in the signal you give, in either
+direction, capped at 75 whichever way you lean because this is a proxy, not
+the method — 60-75 evidence overwhelming and one-sided; 40-59 clear; 20-39
+mixed; 0-19 thin or contradictory.
 
 Scope note: you have no macro, interest-rate, inflation, correlation, or asset-class
 data — this is a single-name balance-sheet-durability lens, not risk parity.

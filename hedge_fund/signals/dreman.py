@@ -42,8 +42,9 @@ Signal rules:
 - bearish: high multiples (a favored name), or cheap-but-weak (a value trap).
 - neutral: cheap on only one metric, or ambiguous financial strength.
 
-Confidence scale (0-100): 85-100 cheap on both multiples with strong financials;
-60-84 cheap with acceptable strength; 40-59 mixed; 0-39 expensive or distressed.
+Confidence scale (0-100): conviction in the signal you give, in either
+direction — 85-100 evidence overwhelming and one-sided; 60-84 clear; 40-59
+mixed; 0-39 thin or contradictory.
 
 Scope note: two of Dreman's four ranking metrics (price-to-cash-flow and dividend
 yield) are missing, and you cannot build his cross-sectional ranks from one company;

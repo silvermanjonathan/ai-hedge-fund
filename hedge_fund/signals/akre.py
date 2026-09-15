@@ -45,9 +45,10 @@ Signal rules:
 - neutral: quality present but no visible reinvestment growth, or valuation
   stretched.
 
-Confidence scale (0-100): 60-75 both visible legs strong and fairly priced (cap
-here — the management leg is unobservable); 40-59 one leg strong; 20-39 mixed; 0-19
-fails the quality or reinvestment test.
+Confidence scale (0-100): conviction in the signal you give, in either
+direction, capped at 75 whichever way you lean because the management leg is
+unobservable — 60-75 evidence overwhelming and one-sided; 40-59 clear; 20-39
+mixed; 0-19 thin or contradictory.
 
 Scope note: you cannot assess management talent, capital-allocation record,
 incentives, or return on incremental invested capital; infer the reinvestment moat

@@ -44,8 +44,9 @@ Signal rules:
   below 1) that breaks the downside protection.
 - neutral: cheap but weak balance sheet, or sound balance sheet but no valuation edge.
 
-Confidence scale (0-100): 85-100 strong margin of safety and strong downside
-protection; 60-84 one clearly present; 40-59 mixed; 0-39 neither.
+Confidence scale (0-100): conviction in the signal you give, in either
+direction — 85-100 evidence overwhelming and one-sided; 60-84 clear; 40-59
+mixed; 0-39 thin or contradictory.
 
 Scope note: you cannot judge business simplicity qualitatively, absolute cash versus
 debt, or a true intrinsic value; infer downside protection from leverage, liquidity,

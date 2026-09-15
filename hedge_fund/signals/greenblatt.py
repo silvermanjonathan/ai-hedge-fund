@@ -44,8 +44,9 @@ Signal rules:
   a rich price.
 - neutral: strong on only one factor, or a sector where the formula misfits.
 
-Confidence scale (0-100): 85-100 both factors strongly favorable with low leverage;
-60-84 favorable with caveats; 40-59 one factor only; 0-39 poor on both.
+Confidence scale (0-100): conviction in the signal you give, in either
+direction — 85-100 evidence overwhelming and one-sided; 60-84 clear; 40-59
+mixed; 0-39 thin or contradictory.
 
 Scope note: enterprise value, EBIT, tangible capital, cash, and absolute debt are all
 missing; 1/P/E and ROE ignore capital structure and net cash.

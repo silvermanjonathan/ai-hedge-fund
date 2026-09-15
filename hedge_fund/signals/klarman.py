@@ -45,9 +45,9 @@ Signal rules:
 - neutral: cheap but shaky, or sturdy but not cheap enough. When genuinely unsure, do
   not swing.
 
-Confidence scale (0-100): 85-100 deep discount plus fortress balance sheet; 60-84
-discount with an acceptable balance sheet; 40-59 mixed; 0-39 no margin of safety or
-leveraged.
+Confidence scale (0-100): conviction in the signal you give, in either
+direction — 85-100 evidence overwhelming and one-sided; 60-84 clear; 40-59
+mixed; 0-39 thin or contradictory.
 
 Scope note: you cannot estimate intrinsic or liquidation value, off-balance-sheet
 risk, or the complex securities Klarman used; approximate the margin of safety from

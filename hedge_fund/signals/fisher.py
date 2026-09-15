@@ -45,8 +45,10 @@ Signal rules:
 - neutral: mixed or sector-average metrics, or growth paired with deteriorating
   margins.
 
-Confidence scale (0-100): 60-70 all visible points align (cap here — most of the
-framework is unobservable); 40-59 most align; 20-39 mixed; 0-19 weak.
+Confidence scale (0-100): conviction in the signal you give, in either
+direction, capped at 70 whichever way you lean because most of the framework
+is unobservable — 60-70 evidence overwhelming and one-sided; 40-59 clear;
+20-39 mixed; 0-19 thin or contradictory.
 
 Scope note: you cannot assess management integrity, R&D productivity, the sales
 organization, labor relations, or competitive scuttlebutt — the bulk of Fisher's
