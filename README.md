@@ -101,6 +101,16 @@ Claude models — `claude-fable-5-1` (the default), Opus 5, Sonnet 5, and any un
 
 `--data free|fd` (or `HEDGE_FUND_DATA`) selects the market data source; `free` is the default. `--refresh-data` (or `HEDGE_FUND_DATA_REFRESH=1`) ignores that cache for one run and rewrites it, for when a cached answer has gone stale. Each source keeps its own disk cache under `~/.hedge-fund/cache/` (`data-free/`, `data/`), and the raw EDGAR and Yahoo payloads are cached beside them with a one-day TTL, so a ticker's facts download once a day. All EDGAR traffic goes through one process-wide rate limiter (8 requests/second, under the SEC's 10) with the required `User-Agent`. Methods the free source cannot serve — news, insider trades, earnings — raise `NotImplementedError` rather than returning empty. A company that reorganised under a new CIK (a holding-company redomiciliation, say) keeps its history: the client reads the successor's Form 8-K12B, resolves the predecessor it names through EDGAR company search, and merges the predecessor's facts in.
 
+## Weekly loop
+
+`~/.hedge-fund/weekly.sh` is the desk's week in one script: it re-selects the quality and value universes from current Finviz values (`aihf-universe`), runs the quality desk, the value desk, and a resilience check (the `dalio_resilience` lens alone, over the union of both universes) at low effort, ingests the three records into the verdict ledger, and prints the candidates and the 63-day scorecard. Everything goes to `~/.hedge-fund/logs/weekly-<date>.log`.
+
+- **The ledger** (`aihf-ledger ingest`) logs each distinct verdict once — identity is (school, ticker, snapshot hash) — with the close on the day it was first made and SPY the same day. A school re-reasons only when a filing changes, so a week with no new filings costs nothing: every verdict is a cache hit and the ledger adds no rows.
+- **The scorecard** (`aihf-ledger scorecard`) grades each school per horizon (21, 63, 126 trading days) on excess return over SPY signed by the call, and against the equal-weight return of the names it saw that day. Below 20 scored calls it reads `provisional`; nothing is old enough to score until the first horizon elapses.
+- **The playbook** (`aihf-ledger candidates`) combines the latest verdicts per ticker, restricted to schools reasoning on the same filing, through a few rules (consensus, contrarian, `resilience_confirmed` = resilient balance sheet plus schools bullish, and a forensic warning tag). The output is a list for review, written to `~/.hedge-fund/ledger/candidates-<date>.csv`. It is not orders and not advice.
+
+Because the universes are re-selected weekly from a current screen, a name can enter or leave between runs; the ledger keeps every verdict ever made regardless.
+
 ## How to Contribute
 
 1. Fork the repository

@@ -1,0 +1,15 @@
+# Resilience check — one balance-sheet-durability lens over every name the
+# other desks looked at, so the playbook's resilience_confirmed rule has a
+# verdict for each. Its blend output is ignored; only its verdicts matter.
+name: resilience-check
+strategies:
+  - name: resilience
+    display_name: Resilience Check
+    models:
+      - name: dalio_resilience
+risk:
+  max_position_pct: 0.25
+  max_gross_exposure: 1.0
+capital: 100000
+rebalance: weekly
+benchmark: SPY
