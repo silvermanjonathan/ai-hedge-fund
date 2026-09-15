@@ -9,7 +9,7 @@
     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.aihf.weekly.plist
     launchctl kickstart -k gui/$(id -u)/com.aihf.weekly   # run once now
   Runs ~/.hedge-fund/weekly.sh (the wrapper that points at this checkout)
-  every Monday at 08:00 local time; output lands in ~/.hedge-fund/logs/.
+  every Monday at 10:00 local time; output lands in ~/.hedge-fund/logs/.
 -->
 <plist version="1.0">
 <dict>
@@ -25,7 +25,7 @@
         <key>Weekday</key>
         <integer>1</integer>
         <key>Hour</key>
-        <integer>8</integer>
+        <integer>10</integer>
         <key>Minute</key>
         <integer>0</integer>
     </dict>
