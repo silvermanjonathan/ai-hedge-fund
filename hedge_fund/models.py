@@ -25,6 +25,11 @@ class Signal(BaseModel):
     reasoning: str | None = None  # human-readable rationale — central for LLM agents
     components: dict[str, float] = Field(default_factory=dict)  # quant decomposition
     metadata: dict[str, Any] = Field(default_factory=dict)
+    # Carried by LLM agents so a verdict can be identified and dated without the
+    # prompt cache: (model_name, ticker, snapshot_hash) is a verdict's identity.
+    confidence: float | None = None
+    snapshot_hash: str | None = None
+    filing_date: str | None = None
 
 
 class QuantSignals(BaseModel):

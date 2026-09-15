@@ -161,6 +161,9 @@ class LLMAgent(AlphaModel):
             date=date,
             value=value,
             reasoning=parsed["reasoning"],
+            confidence=parsed["confidence"],
+            snapshot_hash=snapshot.content_hash,
+            filing_date=snapshot.periods[0].filing_date if snapshot.periods else None,
             metadata={
                 "signal": parsed["signal"],
                 "confidence": parsed["confidence"],
