@@ -85,3 +85,14 @@ def test_scalar_cached(tmp_path):
     assert fd.get_market_cap("AAPL", "2024-12-31") == 3.0e12
     assert fd.get_market_cap("AAPL", "2024-12-31") == 3.0e12
     assert inner.calls == 1
+
+
+def test_two_cache_dirs_do_not_collide(tmp_path):
+    """Keys carry method and params, not the provider: two sources must be
+    kept apart by directory (as open_data_client does)."""
+    a = CachedDataClient(CountingClient(), cache_dir=tmp_path / "a")
+    b = CachedDataClient(CountingClient(), cache_dir=tmp_path / "b")
+    a.get_company_facts("AAPL")
+    assert b._client.calls == 0
+    b.get_company_facts("AAPL")
+    assert b._client.calls == 1

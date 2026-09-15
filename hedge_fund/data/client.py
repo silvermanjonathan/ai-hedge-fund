@@ -8,6 +8,7 @@ import time
 
 import requests
 
+from hedge_fund.data.errors import DataClientError
 from hedge_fund.data.models import (
     CompanyFacts,
     CompanyNews,
@@ -21,16 +22,11 @@ from hedge_fund.data.models import (
 logger = logging.getLogger(__name__)
 
 
-class FDClientError(Exception):
+class FDClientError(DataClientError):
     """An API request failed for infrastructure reasons (auth, rate limit,
     server error, network). Distinct from "no data exists" — that returns
     empty. A backtest must crash on this, not treat it as no-data.
     """
-
-    def __init__(self, message: str, *, status_code: int | None = None, path: str | None = None) -> None:
-        super().__init__(message)
-        self.status_code = status_code
-        self.path = path
 
 
 class FDClient:

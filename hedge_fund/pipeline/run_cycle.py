@@ -24,10 +24,18 @@ Notable behavior, chosen deliberately:
   analysts never called): unlisted/delisted names are normal in history.
   A HELD ticker with no price raises — a fund that cannot price its own
   book has an infrastructure problem, and its NAV would be a lie.
+- Within a strategy the (ticker, analyst) calls fan out over a bounded
+  thread pool (HEDGE_FUND_LLM_WORKERS, default 4) — LLM latency dominates a
+  cycle. The signals list is reassembled in ticker-major, staff-minor order,
+  so the record is the one the serial loop produced; a worker count of 1 IS
+  the serial loop. Exceptions propagate exactly as they did from it.
 """
 
 from __future__ import annotations
 
+import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date as _date
 from datetime import timedelta
 
@@ -44,6 +52,10 @@ from hedge_fund.risk.limits import apply_limits
 # How far back to look for the most recent close: covers weekends, holiday
 # clusters, and short trading halts without reaching into stale history.
 _MARK_LOOKBACK_DAYS = 7
+
+# Analyst calls in flight at once within one strategy; 1 runs them serially.
+_WORKERS_ENV = "HEDGE_FUND_LLM_WORKERS"
+_DEFAULT_WORKERS = 4
 
 
 def run_cycle(
@@ -86,10 +98,7 @@ def run_cycle(
     strategy_records: list[StrategyRecord] = []
     netted: dict[str, float] = {t: 0.0 for t in tradeable}
     for strategy, staff in fund.strategies:
-        signals: list[Signal] = []
-        for ticker in tradeable:
-            for model in staff:
-                signals.append(model.predict(ticker, as_of, data_client))
+        signals = _predict_all(staff, tradeable, as_of, data_client)
         blend = blend_signals(
             signals, strategy.model_weights, strategy.blend.gross_target,
             market_neutral=strategy.blend.market_neutral,
@@ -138,6 +147,62 @@ def run_cycle(
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+def _predict_all(
+    staff: list,
+    tradeable: list[str],
+    as_of: str,
+    data_client: DataClient,
+) -> list[Signal]:
+    """Every (ticker, analyst) view, in ticker-major, staff-minor order.
+
+    With one worker this is the plain nested loop, byte for byte. With more,
+    the same calls run on a bounded pool and the results are collected back
+    into submission order, so the StrategyRecord never notices. The first
+    exception is re-raised as the serial loop would have raised it; the
+    remaining futures are cancelled rather than left to spend.
+    """
+    pairs = [(ticker, model) for ticker in tradeable for model in staff]
+    workers = int(os.environ.get(_WORKERS_ENV, _DEFAULT_WORKERS))
+    if workers <= 1 or len(pairs) <= 1:
+        return [model.predict(ticker, as_of, data_client) for ticker, model in pairs]
+
+    shared = _SerializedDataClient(data_client)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(model.predict, ticker, as_of, shared)
+                   for ticker, model in pairs]
+        try:
+            return [future.result() for future in futures]
+        except BaseException:
+            for future in futures:
+                future.cancel()
+            raise
+
+
+class _SerializedDataClient:
+    """A DataClient proxy that runs every call under one lock.
+
+    CachedDataClient writes its cache files non-atomically and FDClient owns
+    a single requests.Session; neither is safe for concurrent use. Data
+    calls are cheap and mostly cached — LLM latency is what the fan-out
+    buys back — so serializing them costs nothing measurable.
+    """
+
+    def __init__(self, inner: DataClient) -> None:
+        self._inner = inner
+        self._lock = threading.Lock()
+
+    def __getattr__(self, name: str):
+        attr = getattr(self._inner, name)
+        if not callable(attr):
+            return attr
+
+        def call(*args, **kwargs):
+            with self._lock:
+                return attr(*args, **kwargs)
+
+        return call
+
 
 def _mark_prices(
     tickers: list[str],

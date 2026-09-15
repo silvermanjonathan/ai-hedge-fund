@@ -38,9 +38,10 @@ construction: it's the fund, replayed, not a separate simulator.
 ```bash
 poetry install                          # dependencies
 
-# .env needs (at repo root):
-#   FINANCIAL_DATASETS_API_KEY=...      # market/fundamentals data
+# .env needs (at repo root or ~/.hedge-fund/.env):
+#   HEDGE_FUND_SEC_USER_AGENT="Name you@example.com"  # SEC EDGAR contact (default free data source)
 #   ANTHROPIC_API_KEY=...               # only for LLM agents (Buffett)
+#   FINANCIAL_DATASETS_API_KEY=...      # only with --data fd / HEDGE_FUND_DATA=fd
 
 # THE command. No arguments: launch the interactive app (a Textual TUI).
 # Build a fund — pick stocks, strategies, rebalance cadence — or backtest a

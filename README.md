@@ -38,10 +38,12 @@ aihf
 
 The app asks for keys the first time it needs them and saves them to `~/.hedge-fund/.env` — nothing to configure up front. It needs:
 
-- A [Financial Datasets](https://financialdatasets.ai) API key, for prices, fundamentals, and earnings.
 - One LLM API key for the LLM-powered alpha models. Supported providers: Anthropic, OpenAI, DeepSeek, Google, xAI, Kimi.
+- A data source. The default, `--data free` (or `HEDGE_FUND_DATA=free`), needs no paid key: fundamentals come from [SEC EDGAR](https://www.sec.gov/search-filings/edgar-application-programming-interfaces)'s XBRL company facts and prices from Yahoo Finance via [yfinance](https://github.com/ranaroussi/yfinance) (Yahoo's data is for personal, educational use). The SEC requires every automated client to identify itself, so set `HEDGE_FUND_SEC_USER_AGENT="Your Name you@example.com"` — the app prompts for it. Alternatively `--data fd` uses a [Financial Datasets](https://financialdatasets.ai) API key for prices, fundamentals, and earnings.
 
 Keys exported in your shell always win over the saved file.
+
+The free source has no earnings-surprise data, so the `pead` model (the example mandate's earnings-drift strategy) needs `--data fd`; the CLI says so before running. Its fundamentals are dated by the 10-Q/10-K that first reported them and never restated, which keeps a backtest point-in-time and its LLM cache stable. A Finviz Elite price export could replace yfinance behind the `PriceSource` seam in `hedge_fund/data/prices.py`.
 
 ## How to Run
 
@@ -78,6 +80,20 @@ poetry install
 poetry run aihf
 poetry run pytest hedge_fund
 ```
+
+### Anthropic models use the SDK directly
+
+Claude models — `claude-fable-5-1` (the default), Opus 5, Sonnet 5, and any unlisted `claude-*` id — go through the official `anthropic` SDK rather than LangChain: the API enforces the analyst JSON schema as structured output, the persona system prompt carries a prompt-cache breakpoint, and adaptive thinking is steered by effort. Every other provider stays on LangChain.
+
+- `--effort low|medium|high|xhigh|max` (or `HEDGE_FUND_LLM_EFFORT`) sets how hard the model thinks; the default is `high`. A mandate can pin it per model with `params: {effort: medium}`.
+- `HEDGE_FUND_LLM_WORKERS` (default 4) is how many analyst calls run at once within a cycle; `1` runs them serially, with an identical record.
+- Fable 5.1 is the most expensive tier. The disk cache under `~/.hedge-fund/cache/llm/` is what keeps backtests cheap: an unchanged snapshot never pays for a second call.
+- A refusal (`stop_reason: "refusal"`) makes the agent abstain, like any other LLM failure. There is no fallback model.
+- Each call logs model, effort, stop reason, and token counts — including cache reads and writes — at INFO.
+
+### Data sources
+
+`--data free|fd` (or `HEDGE_FUND_DATA`) selects the market data source; `free` is the default. `--refresh-data` (or `HEDGE_FUND_DATA_REFRESH=1`) ignores that cache for one run and rewrites it, for when a cached answer has gone stale. Each source keeps its own disk cache under `~/.hedge-fund/cache/` (`data-free/`, `data/`), and the raw EDGAR and Yahoo payloads are cached beside them with a one-day TTL, so a ticker's facts download once a day. All EDGAR traffic goes through one process-wide rate limiter (8 requests/second, under the SEC's 10) with the required `User-Agent`. Methods the free source cannot serve — news, insider trades, earnings — raise `NotImplementedError` rather than returning empty. A company that reorganised under a new CIK (a holding-company redomiciliation, say) keeps its history: the client reads the successor's Form 8-K12B, resolves the predecessor it names through EDGAR company search, and merges the predecessor's facts in.
 
 ## How to Contribute
 

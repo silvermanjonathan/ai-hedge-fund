@@ -8,6 +8,7 @@ quant models (pure math).
 
 from __future__ import annotations
 
+from hedge_fund.models import AnalystVerdict
 from hedge_fund.signals.base import AlphaModel, QuantModel
 from hedge_fund.signals.buffett import BuffettAgent
 from hedge_fund.signals.druckenmiller import DruckenmillerAgent
@@ -30,6 +31,7 @@ ALPHA_MODEL_REGISTRY: dict[str, type[AlphaModel]] = {
 
 __all__ = [
     "AlphaModel",
+    "AnalystVerdict",
     "QuantModel",
     "LLMAgent",
     "BuffettAgent",
