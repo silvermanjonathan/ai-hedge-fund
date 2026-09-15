@@ -7,6 +7,8 @@ import pytest
 from hedge_fund.data import factory
 from hedge_fund.data.factory import (
     cache_dir_for,
+    data_refresh,
+    DATA_REFRESH_ENV,
     data_source,
     DATA_SOURCE_ENV,
     missing_data_key,
@@ -18,6 +20,7 @@ from hedge_fund.data.factory import (
 @pytest.fixture
 def clean_env(monkeypatch):
     monkeypatch.delenv(DATA_SOURCE_ENV, raising=False)
+    monkeypatch.delenv(DATA_REFRESH_ENV, raising=False)
     monkeypatch.delenv("FINANCIAL_DATASETS_API_KEY", raising=False)
     monkeypatch.delenv("HEDGE_FUND_SEC_USER_AGENT", raising=False)
 
@@ -70,3 +73,24 @@ def test_open_data_client_wraps_and_closes(clean_env, monkeypatch, tmp_path):
     with open_data_client("free") as fd:
         assert fd._client is raw and fd._dir == tmp_path
     assert raw.closed
+
+
+def test_refresh_comes_from_the_env_unless_given(clean_env, monkeypatch, tmp_path):
+    class Raw:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr(factory, "make_data_client", lambda source=None: Raw())
+    monkeypatch.setattr(factory, "cache_dir_for", lambda source=None: tmp_path)
+    assert data_refresh() is False
+    with open_data_client("free") as fd:
+        assert fd._refresh is False
+    monkeypatch.setenv(DATA_REFRESH_ENV, "1")
+    assert data_refresh() is True
+    with open_data_client("free") as fd:
+        assert fd._refresh is True
+    with open_data_client("free", refresh=False) as fd:
+        assert fd._refresh is False  # an explicit argument wins

@@ -27,6 +27,9 @@ from hedge_fund.data.free import FreeDataClient
 from hedge_fund.paths import CACHE_DIR
 
 DATA_SOURCE_ENV = "HEDGE_FUND_DATA"
+# Truthy: ignore the per-source disk cache for this process and rewrite it
+# (`aihf --refresh-data`). The raw EDGAR and Yahoo payloads keep their TTLs.
+DATA_REFRESH_ENV = "HEDGE_FUND_DATA_REFRESH"
 DATA_SOURCES = ("free", "fd")
 DEFAULT_DATA_SOURCE = "free"
 
@@ -45,6 +48,11 @@ def data_source() -> str:
     if source not in DATA_SOURCES:
         raise ValueError(f"{DATA_SOURCE_ENV}={source!r} is not a data source; choose one of {', '.join(DATA_SOURCES)}")
     return source
+
+
+def data_refresh() -> bool:
+    """Whether HEDGE_FUND_DATA_REFRESH asks for the disk cache to be bypassed."""
+    return os.environ.get(DATA_REFRESH_ENV, "").strip().lower() in ("1", "true", "yes", "on")
 
 
 def provider_label(source: str | None = None) -> str:
@@ -84,12 +92,18 @@ def make_data_client(source: str | None = None):
 
 
 @contextmanager
-def open_data_client(source: str | None = None, refresh: bool = False) -> Iterator[CachedDataClient]:
+def open_data_client(source: str | None = None, refresh: bool | None = None) -> Iterator[CachedDataClient]:
     """The cached client for a source, closing the raw one on exit::
 
     with open_data_client() as fd:
         record = run_cycle(fund, as_of, broker, fd, universe)
+
+    *refresh* None defers to HEDGE_FUND_DATA_REFRESH. A cached answer that
+    has since become wrong (an empty result from before a data fix, say) is
+    otherwise served forever, by design.
     """
     source = source or data_source()
+    if refresh is None:
+        refresh = data_refresh()
     with make_data_client(source) as raw:
         yield CachedDataClient(raw, cache_dir=cache_dir_for(source), refresh=refresh)

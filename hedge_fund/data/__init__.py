@@ -10,10 +10,12 @@ from hedge_fund.data.client import FDClient, FDClientError
 from hedge_fund.data.edgar import SEC_USER_AGENT_ENV, EdgarClient, EdgarError
 from hedge_fund.data.errors import DataClientError
 from hedge_fund.data.factory import (
+    DATA_REFRESH_ENV,
     DATA_SOURCE_ENV,
     DATA_SOURCES,
     DEFAULT_DATA_SOURCE,
     cache_dir_for,
+    data_refresh,
     data_source,
     make_data_client,
     missing_data_key,
@@ -41,6 +43,7 @@ __all__ = [
     "CachedDataClient",
     "CompanyFacts",
     "CompanyNews",
+    "DATA_REFRESH_ENV",
     "DATA_SOURCE_ENV",
     "DATA_SOURCES",
     "DEFAULT_DATA_SOURCE",
@@ -63,6 +66,7 @@ __all__ = [
     "SEC_USER_AGENT_ENV",
     "YFinancePrices",
     "cache_dir_for",
+    "data_refresh",
     "data_source",
     "make_data_client",
     "missing_data_key",

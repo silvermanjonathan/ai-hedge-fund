@@ -102,6 +102,13 @@ def main() -> None:
         "contact); fd = Financial Datasets (needs FINANCIAL_DATASETS_API_KEY) "
         "(default: HEDGE_FUND_DATA env, else free)",
     )
+    parser.add_argument(
+        "--refresh-data",
+        action="store_true",
+        help="ignore the on-disk data cache for this run and rewrite it — for when "
+        "a cached answer has gone stale (raw EDGAR and Yahoo payloads within their "
+        "TTL are still reused); also honoured as HEDGE_FUND_DATA_REFRESH=1",
+    )
     parser.add_argument("--out", help="also write the record JSON to this file")
     args = parser.parse_args()
 
@@ -111,6 +118,8 @@ def main() -> None:
         os.environ["HEDGE_FUND_LLM_EFFORT"] = args.effort
     if args.data:
         os.environ["HEDGE_FUND_DATA"] = args.data
+    if args.refresh_data:
+        os.environ["HEDGE_FUND_DATA_REFRESH"] = "1"
 
     if args.mandate is None:
         # The interactive experience is the Textual app. Import it lazily so
