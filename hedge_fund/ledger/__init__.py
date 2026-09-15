@@ -20,4 +20,4 @@ from hedge_fund.ledger.rules import (
 from hedge_fund.ledger.score import Scorecard, scorecard, ScoreRow
 from hedge_fund.ledger.store import DEFAULT_LEDGER_PATH, IngestResult, Ledger
 
-__all__ = ["Candidate", "DEFAULT_LEDGER_PATH", "HEADER", "IngestResult", "Ledger", "PlaybookConfig", "ScoreRow", "Scorecard", "playbook", "render_candidates", "scorecard", "write_candidates_csv"]
+__all__ = ["Candidate", "DEFAULT_LEDGER_PATH", "HEADER", "IngestResult", "Ledger", "PlaybookConfig", "ScoreRow", "Scorecard", "annotate_staleness", "facts_lag_warning", "playbook", "render_candidates", "scorecard", "write_candidates_csv"]

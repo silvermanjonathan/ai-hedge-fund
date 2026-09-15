@@ -15,6 +15,7 @@ import sys
 from datetime import date
 
 from hedge_fund.data import open_data_client
+from hedge_fund.data.edgar import EdgarClient, EdgarError
 from hedge_fund.ledger.rules import (
     playbook,
     PlaybookConfig,
@@ -22,6 +23,7 @@ from hedge_fund.ledger.rules import (
     write_candidates_csv,
 )
 from hedge_fund.ledger.score import HORIZONS, scorecard
+from hedge_fund.ledger.staleness import annotate_staleness
 from hedge_fund.ledger.store import DEFAULT_LEDGER_PATH, Ledger
 from hedge_fund.tui.keys import apply_credentials
 
@@ -69,7 +71,15 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "candidates":
         cfg = PlaybookConfig(min_schools=args.min_schools, min_conf=args.min_conf, follow=args.follow, follow_conf=args.follow_conf)
         candidates = playbook(ledger.latest_per_ticker_school(), cfg)
+        # Are the verdicts a quarter behind the filings? Ask EDGAR submissions.
+        try:
+            with EdgarClient() as edgar:
+                stale = annotate_staleness(candidates, edgar)
+        except EdgarError as exc:
+            print(f"aihf-ledger: staleness check skipped: {exc}", file=sys.stderr)
+            stale = []
         print(render_candidates(candidates, cfg))
+        print(f"stale facts: {', '.join(stale) if stale else 'none'}")
         out = write_candidates_csv(candidates, ledger.path.parent / f"candidates-{args.today}.csv")
         print(f"wrote {out}", file=sys.stderr)
         return

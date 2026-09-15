@@ -44,7 +44,7 @@ run_desk resilience-check "$HOME_DIR/mandates/resilience-check.yaml" "$UNION"
 
 # 3. Ledger, candidates, scorecard.
 poetry run aihf-ledger ingest "$RECORDS/quality-desk-$DATE.json" "$RECORDS/value-desk-$DATE.json" "$RECORDS/resilience-check-$DATE.json"
-poetry run aihf-ledger candidates
+poetry run aihf-ledger candidates | tee "$HOME_DIR/logs/candidates-$DATE.txt"
 poetry run aihf-ledger scorecard --horizon 63
 
 # 4. Cost summary from the INFO lines (Fable 5.1 list prices), else call counts.
@@ -58,4 +58,7 @@ for path in glob.glob(f"{logs}/*-desk-{day}.log") + glob.glob(f"{logs}/resilienc
 cost = i * 10 / 1e6 + cw * 12.5 / 1e6 + cr * 0.25 / 1e6 + o * 50 / 1e6
 print(f"cost: {n} live calls, ~${cost:.2f} (in={i} out={o} cache_write={cw} cache_read={cr})" if n else "cost: 0 live calls (all cache hits), $0.00")
 PY
+# 5. Names whose verdicts trail a newer filing (EDGAR companyfacts lag).
+STALE=$(grep -E '^stale facts:' "$HOME_DIR/logs/candidates-$DATE.txt" | tail -1 || true)
+echo "${STALE:-stale facts: none}"
 echo "== done $DATE; log: $LOG =="

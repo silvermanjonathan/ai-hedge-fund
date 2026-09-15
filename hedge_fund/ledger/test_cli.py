@@ -14,9 +14,26 @@ def _fake_client():
     yield FakeData()
 
 
+class _FakeEdgar:
+    """AAPL's latest 10-Q is newer than the 2026-07-29 filing the fake verdicts carry."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+    def cik_for(self, ticker):
+        return 1 if ticker == "AAPL" else None
+
+    def submissions(self, cik):
+        return {"filings": {"recent": {"form": ["10-Q"], "filingDate": ["2026-10-30"]}}}
+
+
 def _run(monkeypatch, capsys, argv):
     monkeypatch.setattr(cli, "apply_credentials", lambda: None)
     monkeypatch.setattr(cli, "open_data_client", _fake_client)
+    monkeypatch.setattr(cli, "EdgarClient", _FakeEdgar)
     cli.main(argv)
     return capsys.readouterr()
 
@@ -35,5 +52,8 @@ def test_ingest_scorecard_candidates(tmp_path, monkeypatch, capsys):
     out = _run(monkeypatch, capsys, ["--ledger", str(ledger), "candidates", "--today", "2026-09-16"])
     assert out.out.startswith("Candidates for review — not orders, not advice. Rules: min_schools=3")
     assert "AAPL   | long  | consensus_long" in out.out
-    assert (tmp_path / "ledger" / "candidates-2026-09-16.csv").exists()
+    assert "facts lag: 10-Q filed 2026-10-30 not yet in EDGAR companyfacts; verdicts reflect the prior quarter" in out.out
+    assert "stale facts: AAPL" in out.out
+    csv_text = (tmp_path / "ledger" / "candidates-2026-09-16.csv").read_text()
+    assert "facts lag: 10-Q filed 2026-10-30" in csv_text
     assert "wrote" in out.err
