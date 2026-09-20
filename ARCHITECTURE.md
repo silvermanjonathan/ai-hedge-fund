@@ -7,6 +7,12 @@ what the docs claim, and what is worth fixing.
 **Basis:** full repository access. Recovered 2026-09-20 against `main` @ `dfee2b4`.
 **Scope:** full module, runtime, and allocation views, with a health pass alongside.
 
+> **Resolved on branch `architecture-docs-and-tooling` (Sept 2026).** F1, F3
+> and F4 are fixed; F2 and F5 were examined and deliberately closed as
+> "keep". The findings table, the drift table and §10 below are kept as
+> written, with each row marked, because the reasoning is why the fixes
+> look the way they do. §12 records what changed.
+
 This is a point-in-time snapshot, not a living spec. Claims are tagged by how
 they were established — **Observed** (read in code, with a path), **Inferred**
 (follows from observations), or **Unverified** (not checked; §11 says what would
@@ -31,13 +37,13 @@ Everything else is a plug into that line. Backtest, one-shot CLI run, and TUI re
 
 | # | Finding | Severity |
 |---|---|---|
-| F1 | The project's own check command fails: 1,071 flake8 errors, 47 files unformatted, isort failures. No CI exists to catch it. | High |
-| F2 | Two parallel backtest engines coexist; the older one's docstring says it was to be replaced and it wasn't. | Medium |
-| F3 | Sharpe and max-drawdown math is implemented twice — once in the engine, once in the TUI — and can silently diverge. | Medium |
-| F4 | Credential bootstrap (`apply_credentials`) lives in `hedge_fund/tui/`, so every non-TUI entry point imports the presentation package. | Low-Medium |
-| F5 | `hedge_fund/validation/` is a docstring-only stub; `hedge_fund/event_study/` (1,213 LOC) is reachable but undocumented and unreferenced. | Low |
+| F1 | ~~The project's own check command fails: 1,071 flake8 errors, 47 files unformatted, isort failures. No CI exists to catch it.~~ **Fixed.** All four legs green and enforced in CI. See §12. | High |
+| F2 | ~~Two parallel backtest engines coexist; the older one's docstring says it was to be replaced and it wasn't.~~ **Closed — kept.** The docstring was false, not the code. Both engines answer different questions; only the stale promise was removed. See §12. | Medium |
+| F3 | ~~Sharpe and max-drawdown math is implemented twice — once in the engine, once in the TUI — and can silently diverge.~~ **Fixed.** One implementation, `backtesting.running_metrics`. See §12. | Medium |
+| F4 | ~~Credential bootstrap (`apply_credentials`) lives in `hedge_fund/tui/`, so every non-TUI entry point imports the presentation package.~~ **Fixed.** Moved to `hedge_fund/config/`. See §12. | Low-Medium |
+| F5 | ~~`hedge_fund/validation/` is a docstring-only stub; `hedge_fund/event_study/` (1,213 LOC) is reachable but undocumented and unreferenced.~~ **Closed — both kept, status documented.** `event_study`'s library is complete, not abandoned; my first read of it was wrong. See §12. | Low |
 
-**Overall risk: low-moderate.** The architecture itself is sound and the seams are in the right places. Every finding is about *erosion at the edges* — tooling, duplication, leftovers — not about the core design. Single-maintainer knowledge concentration is the largest structural risk, and it is mitigated better than usual by the docstrings.
+**Overall risk: low-moderate as first assessed; low after the fixes in §12.** The architecture itself is sound and the seams are in the right places. Every finding was about *erosion at the edges* — tooling, duplication, leftovers — not about the core design, and the invariants that matter are now enforced by tests rather than by discipline. Single-maintainer knowledge concentration remains the largest structural risk, mitigated better than usual by the docstrings. The one open operational gap is coverage, not correctness: nine of eighteen schools run weekly, and the scorecard will rank those nine and stay silent about the rest (§12).
 
 ---
 
@@ -145,8 +151,8 @@ flowchart TB
 
     subgraph out["Downstream, read-only"]
         LEDG["ledger/<br/>verdicts, scorecard, playbook"]
-        ES["event_study/<br/>[orphaned]"]
-        VAL["validation/<br/>[stub only]"]
+        ES["event_study/<br/>[complete, fd-only, unwired]"]
+        VAL["validation/<br/>[placeholder, ~Dec 2026]"]
     end
 
     RUN --> RC & BTF
@@ -179,14 +185,14 @@ flowchart TB
 | `tui/` | 2,557 | Textual app + a Textual-free `shared.py` the CLI also imports. |
 | `ledger/` | 1,122 | Verdict ledger (append-only JSONL), scorecard, candidate playbook. |
 | `llm/` | 1,129 | `LLMClient` protocol, Anthropic SDK client, LangChain fallback, prompt cache. |
-| `backtesting/` | 1,164 | `backtest_fund` (fund-level) and `BacktestEngine` (single-model, legacy). |
-| `event_study/` | 1,213 | Standalone event-study analysis. Orphaned. |
+| `backtesting/` | 1,164 | `backtest_fund` (fund-level) and `BacktestEngine` (single-model alpha isolation — retained deliberately, not legacy). |
+| `event_study/` | 1,213 | Earnings CARs, market model, bootstrap CIs. **Library complete; requires `--data fd`; unwired on purpose.** Its `__main__` demo has drifted from it. |
 | `pipeline/` | 692 | `run_cycle` + the pure execution stage + `CycleRecord`. |
 | `universe/` | 593 | Finviz screen → ticker list, with an EDGAR-servability filter. |
 | `fund/` | 396 | `FundSpec`/`Fund` — the mandate as data. |
 | `features/` | 341 | The point-in-time `FundamentalsSnapshot`. |
 | `portfolio/`, `risk/`, `brokers/` | 418 | The pure core plus the broker seam. |
-| `validation/` | 5 | Docstring-only stub. |
+| `validation/` | 5 | Dated placeholder for CPCV/PBO. Deferred until the ledger has ~20 scored calls per school (~Dec 2026). |
 
 ### Dependency graph health
 
@@ -280,11 +286,12 @@ This is normal for a personal research project and I am not flagging it as a def
 | 6 | Methods a source cannot serve raise `NotImplementedError` | CLAUDE.md | **Holds** | Stated in `data/protocol.py` contract; `factory.py` blocks `pead` on `free` at CLI-parse time, before any network call. |
 | 7 | Tests live next to the code as `test_*.py`; fakes, no network | CLAUDE.md | **Holds** | 40 test files co-located; 323 pass in 6.35s, which is only possible without network. |
 | 8 | Personas are schools with a scope note and a common hard-rules tail | CLAUDE.md, README | **UNVERIFIED** | Registry and `base.py` confirm the *structure* (a persona is a name + a system prompt). The 18 prompt bodies were **not read**, so whether each carries the common hard-rules tail from `buffett.py` is unestablished — neither confirmed nor contradicted. See Q6 in §11. |
-| 9 | "poetry run pytest && black --check && isort --check-only && flake8" is the check | CLAUDE.md | **VIOLATED** | pytest passes; the other three fail. See F1. |
-| 10 | "Week 8 portfolio construction will replace this harness" | `backtesting/engine.py:11` | **VIOLATED** | Portfolio construction exists and `backtest_fund` ships, but `BacktestEngine` was never removed. See F2. |
-| 11 | TUI Sharpe is "same math as run.py `_BacktestBoard._render`" | `tui/app.py:1972` | **Stale** | No `_BacktestBoard` exists anywhere in the repo. See F3. |
-| 12 | "v2 validation framework: CPCV, PBO" | `validation/__init__.py` | **Drift** | The package is 5 lines of docstring and no code. See F5. |
-| 13 | README documents the CLIs | README | **Partial** | `aihf`, `aihf-universe`, `aihf-ledger` documented. `python -m hedge_fund.backtesting` and `python -m hedge_fund.event_study` exist and are documented nowhere. |
+| 9 | "poetry run pytest && black --check && isort --check-only && flake8" is the check | CLAUDE.md | ~~VIOLATED~~ **RESOLVED** | Was 1,071 flake8 findings from a black/flake8 line-length mismatch. All four legs green, enforced in CI. |
+| 10 | "Week 8 portfolio construction will replace this harness" | `backtesting/engine.py:11` | ~~VIOLATED~~ **RESOLVED — claim withdrawn** | The claim was wrong, not the code. `BacktestEngine` is retained deliberately for single-model alpha isolation; the docstring now says so. |
+| 11 | TUI Sharpe is "same math as run.py `_BacktestBoard._render`" | `tui/app.py:1972` | ~~Stale~~ **RESOLVED** | Referenced a symbol that did not exist. Both sites now call `backtesting.running_metrics`. |
+| 12 | "v2 validation framework: CPCV, PBO" | `validation/__init__.py` | ~~Drift~~ **RESOLVED — dated** | Still empty, now deliberately: CPCV/PBO say nothing until there is a track record. Revisit ~Dec 2026. |
+| 13 | README documents the CLIs | README | **Partial — open** | `aihf`, `aihf-universe`, `aihf-ledger` documented. The two `python -m` dev CLIs are documented only in their own module docstrings. Deliberate for now; both are fd-only in practice. |
+| 14 | "Personas are schools... common hard-rules tail" (row 8 above) | CLAUDE.md | **RESOLVED — verified** | All 18 prompt bodies read. All carried the point-in-time clauses; three lacked the abstain clause and were brought into line. Now enforced by `test_persona_contract.py`. |
 
 ### Note on the repository's history
 
@@ -429,16 +436,122 @@ Three decisions, each needing only a yes or no:
 
 ## 11. Open questions
 
-1. Is `hedge_fund/validation/` (CPCV, PBO) deferred or abandoned?
-2. Is `event_study/` still in use? Nothing imports it and no doc mentions it.
-3. Was `BacktestEngine` kept deliberately for single-model research, or just not deleted in the rewrite?
-4. Should `python -m hedge_fund.backtesting` and `python -m hedge_fund.event_study` become console scripts, or are they private dev tools?
-5. Was the flake8/black line-length mismatch a known trade-off, or has the check simply not been run recently?
-6. **(Unverified — drift-table row 8.)** Do all 18 persona prompts actually carry
-   the common hard-rules tail from `buffett.py` that CLAUDE.md mandates? The
-   structural pattern is confirmed; the prompt bodies were not read. This is the
-   invariant that keeps a persona a *school applying a documented framework*
-   rather than an impersonation, so it is the one open question with a
-   correctness consequence rather than a housekeeping one.
-   *Settled by:* reading all 18 prompt bodies and adding a test that asserts the
-   tail is present in every entry of `ALPHA_MODEL_REGISTRY`.
+Most of §11 as first written is now answered; the answers are in §12. What
+is still open:
+
+1. **Should `druckenmiller` be staffed?** See §12 — it is the only school of
+   18 with zero verdicts, so it can never earn or lose its seat. Awaiting a
+   decision.
+2. Should `python -m hedge_fund.backtesting` and `python -m
+   hedge_fund.event_study` become documented console scripts, or stay
+   private dev tools? Both are fd-only in practice today.
+3. Nine of eighteen schools are outside the weekly rotation (§12). Is that
+   intended, or should the rotation widen before the scorecard is read?
+
+**Answered, for the record:** `validation/` is deferred with a date, not
+abandoned (~Dec 2026). `event_study/` is wanted and its library is
+complete; only its demo CLI drifted. `BacktestEngine` was retained
+deliberately. The persona hard-rules tail was verified across all 18.
+
+---
+
+## 12. What changed, and what was examined and kept
+
+Branch `architecture-docs-and-tooling`, September 2026. Recorded here
+because several items were closed as "keep", and a future reader needs to
+know they were examined rather than missed.
+
+### Fixed
+
+| Finding | Resolution |
+|---|---|
+| F1 — check command broken | `line-length` 420 was inherited from the pre-2.0 `src/` tree deleted in `a7a99e5`; no commit ever set it against this package. Now 120 in black and flake8, with `extend-ignore = E203`. 1,071 findings → 0. CI runs all four legs on push and PR. |
+| F3 — Sharpe/drawdown computed twice | `backtesting.running_metrics()` is now the single implementation, called by both `_metrics` and the TUI. The TUI's private `_PERIODS_PER_YEAR` reach-in is gone. `test_live_tiles_and_final_record_cannot_diverge` is the fitness function. |
+| F4 — headless commands importing the TUI | `tui/keys.py` → `config/credentials.py`; `_BACKTEST_WEEKS` → `backtesting.DEFAULT_BACKTEST_WEEKS`. `test_entry_points.py` asserts no headless entry point pulls Textual, checked by importing in a clean interpreter. |
+| Persona tail unverified (row 8) | All 18 prompt bodies read. `druckenmiller`, `lynch` and `munger` lacked the abstain clause and now carry it, at the cost of 50 cached verdicts. `test_persona_contract.py` enforces the tail and its exact wording. |
+| Prompt text unguarded | The cost model depends on `render()` being byte-stable — no test covered it, because the existing ones compared `render()` to itself. A golden fixture and a pinned `content_hash` now do. |
+| `.gitignore` eating real files | A blanket `*.txt` silently swallowed the golden fixture. `*.png`/`*.pdf` are root-anchored; `*.txt` removed outright. |
+
+### Examined and kept
+
+**`BacktestEngine` (F2).** Not a leftover. It and `backtest_fund` answer
+different questions: `backtest_fund` runs the real pipeline — a desk,
+blended, netted, risk-clamped — while `run_alpha` runs one model with
+construction and risk out of the way, showing whether its views carry
+information at all. The false claim that portfolio construction would
+replace it is removed. It also pairs with the ledger rather than
+duplicating it: the ledger scores a school live, inside a blend, on
+Finviz-surfaced names, forward only and provisional under 20 calls; this
+runs one model alone over a chosen window, today.
+
+Worth recording, since it was established by running it rather than
+reading it: **`run_alpha` is not fd-only.** It calls only `get_prices()`
+and `model.predict()`, so the constraint belongs to the model — all 18 LLM
+personas work on the default free source, and only `pead` needs `--data
+fd`. `python -m hedge_fund.backtesting` hardcodes `PEADModel`, which is why
+the *demo* is fd-only while the engine is not.
+
+**`event_study/` (F5).** The first reading in this document — that a
+discarded `_aggregate()` call meant the package was abandoned mid-build —
+was wrong. `compute_car()` does the whole job and 14 tests cover it
+offline. The library is complete; only the `__main__` demo drifted away
+from it, hand-rolling what `compute_car()` already does and rendering none
+of the statistics. Kept unfixed: the fix is about an hour and produces a
+CLI that still cannot run without a Financial Datasets key. The real defect
+was that nothing recorded the status, which is now in
+`event_study/__init__.py`.
+
+**`validation/` (F5).** Empty on purpose. CPCV and PBO measure how much of
+a backtest's edge is selection rather than signal, and neither says
+anything until there is a track record. The scorecard reads `provisional`
+below 20 scored calls per school, and a call is not scored until its
+21/63/126-day horizon elapses. Revisit ~Dec 2026.
+
+### `druckenmiller` is inert, and nothing says so
+
+Of the 18 schools, `druckenmiller` is the **only one with zero cached
+verdicts**. A school no desk runs accumulates no scored calls, so it can
+never earn or lose its seat — it is neither in nor out, indefinitely.
+
+The cause is not the library. `druckenmiller` is staffed in two library
+strategies, `inflections` (with `lynch`) and `fundamental-ls`. Neither is
+used by any mandate. `all-schools.yaml` covers 13 schools and omits it.
+
+The weekly rotation runs 9 of 18:
+
+| Desk | Schools |
+|---|---|
+| quality-desk | `fundsmith`, `akre`, `quality_compounder`, `fisher` |
+| value-desk | `dreman`, `schloss`, `klarman`, `pabrai` |
+| resilience-check | `dalio_resilience` |
+
+`buffett`, `graham`, `lynch` and `munger` have verdicts only from ad-hoc
+runs; `chanos`, `damodaran`, `earnings_quality_skeptic` and `greenblatt`
+have one or two each. So `druckenmiller` is the extreme of a wider pattern:
+the scorecard will rank the nine schools that run weekly and stay silent
+about the rest.
+
+**Assessment.** Its framework is rate-of-change — acceleration or
+deceleration across recent quarters, what the multiple implies, asymmetry.
+That is genuinely orthogonal to the rotation, which is all quality and
+value plus one resilience lens, so it would add information rather than
+another correlated vote.
+
+Two caveats. First, it runs at reduced capability by design: "what's priced
+in" wants price action, and the snapshot carries only per-period P/E and
+market cap. Its own prompt concedes this — *"You have no macro or
+price-action data here."* Second, staffing it starts its horizon clock now,
+so it will read `provisional` until roughly 20 calls and one 63-day horizon
+have passed.
+
+**Recommendation:** staff it, mirroring the `resilience-check` pattern — a
+fourth desk running the existing `inflections` strategy (`druckenmiller` +
+`lynch`) over the union of both universes at low effort. That reuses a
+library strategy rather than inventing one, costs two schools over ~15-20
+names, and is almost entirely cache hits after the first week. It also
+brings `lynch` into the rotation.
+
+The alternative is to decide the inflection lens is not one this desk will
+ever allocate to, and delete it from the registry so the scorecard is not
+quietly missing a row. Either is defensible; leaving it staffed nowhere and
+unmentioned is the only option that is not.
