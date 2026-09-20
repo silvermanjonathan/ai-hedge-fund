@@ -1,0 +1,17 @@
+[flake8]
+# Must match black (pyproject.toml [tool.black] line-length), or every line
+# black formats to its limit becomes an E501 and the rule stops meaning
+# anything.
+#
+# 120 was chosen deliberately in Sept 2026 against this package: production
+# code sits at p95=82, p99=104 characters. The previous 420 was inherited
+# from the pre-2.0 src/ tree (introduced in 7f9443b, Jan 2025; that tree was
+# deleted in a7a99e5). It was never a choice made about hedge_fund/, and it
+# left E501 unable to catch a runaway line.
+max-line-length = 120
+
+# E203 (whitespace before ':') contradicts how black formats slices.
+# Black owns formatting; flake8 checks what black cannot.
+extend-ignore = E203
+
+exclude = .git,__pycache__,.venv,build,dist
