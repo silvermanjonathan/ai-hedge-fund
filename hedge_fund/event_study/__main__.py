@@ -11,28 +11,115 @@ import time
 from hedge_fund.data import make_data_client, unsupported_model_names
 from hedge_fund.event_study import compute_car
 
-
 TICKERS = [
     # Tech (21)
-    "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "NFLX", "CRM", "ADBE",
-    "ORCL", "INTC", "AMD", "CSCO", "IBM", "UBER", "SHOP", "SNOW", "PLTR", "PANW", "CRWD",
+    "AAPL",
+    "MSFT",
+    "AMZN",
+    "GOOGL",
+    "META",
+    "NVDA",
+    "TSLA",
+    "NFLX",
+    "CRM",
+    "ADBE",
+    "ORCL",
+    "INTC",
+    "AMD",
+    "CSCO",
+    "IBM",
+    "UBER",
+    "SHOP",
+    "SNOW",
+    "PLTR",
+    "PANW",
+    "CRWD",
     # Financials (15)
-    "JPM", "GS", "BAC", "WFC", "MS", "C", "BLK", "SCHW", "AXP", "COF",
-    "USB", "PNC", "TFC", "BK", "CME",
+    "JPM",
+    "GS",
+    "BAC",
+    "WFC",
+    "MS",
+    "C",
+    "BLK",
+    "SCHW",
+    "AXP",
+    "COF",
+    "USB",
+    "PNC",
+    "TFC",
+    "BK",
+    "CME",
     # Healthcare (15)
-    "JNJ", "PFE", "UNH", "MRK", "LLY", "ABBV", "TMO", "ABT", "BMY", "AMGN",
-    "GILD", "ISRG", "VRTX", "REGN", "MDT",
+    "JNJ",
+    "PFE",
+    "UNH",
+    "MRK",
+    "LLY",
+    "ABBV",
+    "TMO",
+    "ABT",
+    "BMY",
+    "AMGN",
+    "GILD",
+    "ISRG",
+    "VRTX",
+    "REGN",
+    "MDT",
     # Energy (8)
-    "XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX",
+    "XOM",
+    "CVX",
+    "COP",
+    "SLB",
+    "EOG",
+    "MPC",
+    "PSX",
     # Consumer / Retail (15)
-    "HD", "LOW", "COST", "WMT", "KO", "PEP", "MCD", "SBUX", "NKE", "TGT",
-    "TJX", "ROST", "DG", "DLTR", "YUM",
+    "HD",
+    "LOW",
+    "COST",
+    "WMT",
+    "KO",
+    "PEP",
+    "MCD",
+    "SBUX",
+    "NKE",
+    "TGT",
+    "TJX",
+    "ROST",
+    "DG",
+    "DLTR",
+    "YUM",
     # Industrials (10)
-    "CAT", "DE", "HON", "UPS", "RTX", "BA", "LMT", "GE", "MMM", "UNP",
+    "CAT",
+    "DE",
+    "HON",
+    "UPS",
+    "RTX",
+    "BA",
+    "LMT",
+    "GE",
+    "MMM",
+    "UNP",
     # Media / Telecom (7)
-    "DIS", "CMCSA", "T", "VZ", "TMUS", "CHTR", "WBD",
+    "DIS",
+    "CMCSA",
+    "T",
+    "VZ",
+    "TMUS",
+    "CHTR",
+    "WBD",
     # Other (10)
-    "V", "MA", "PYPL", "NEE", "D", "SO", "DUK", "ABNB", "COIN", "NOW",
+    "V",
+    "MA",
+    "PYPL",
+    "NEE",
+    "D",
+    "SO",
+    "DUK",
+    "ABNB",
+    "COIN",
+    "NOW",
 ]
 EARNINGS_LIMIT = 8
 
@@ -77,6 +164,7 @@ def color_eps(s: str | None) -> str:
 
 def main() -> None:
     import logging
+
     logging.getLogger("hedge_fund.data.client").setLevel(logging.ERROR)
 
     n = len(TICKERS)
@@ -91,10 +179,12 @@ def main() -> None:
         )
     with make_data_client() as fd:
         from datetime import date
+
         spy_prices = fd.get_prices("SPY", "2023-01-01", date.today().isoformat())
         spy_closes = {p.time[:10]: p.close for p in spy_prices}
 
         from hedge_fund.event_study.engine import _compute_ticker_events
+
         all_events = []
         for i, ticker in enumerate(TICKERS):
             progress(f"Fetching data... [{i + 1}/{n}] {ticker}")
@@ -106,6 +196,7 @@ def main() -> None:
 
     # Aggregate
     from hedge_fund.event_study.engine import _aggregate
+
     aggregates = _aggregate(all_events, 10_000, 42)
 
     # Clear progress line
@@ -115,7 +206,9 @@ def main() -> None:
     typed(f"Event Study: {len(all_events)} earnings events across {len(set(e.ticker for e in all_events))} tickers")
     print()
 
-    print(f"  {'Ticker':<6} {'Date':<12} {'Type':<6} {'EPS':<4}  {'CAR[0,1]':>8} {'CAR[0,5]':>8} {'CAR[0,20]':>8}   {'Beta':>5} {'R2':>5}")
+    print(
+        f"  {'Ticker':<6} {'Date':<12} {'Type':<6} {'EPS':<4}  {'CAR[0,1]':>8} {'CAR[0,5]':>8} {'CAR[0,20]':>8}   {'Beta':>5} {'R2':>5}"
+    )
     print(f"  {'-' * 78}")
 
     for e in sorted(all_events, key=lambda x: (x.ticker, x.event_date)):
@@ -137,5 +230,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     from hedge_fund.tui.keys import apply_credentials
+
     apply_credentials()
     main()

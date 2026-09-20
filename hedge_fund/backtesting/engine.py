@@ -78,10 +78,17 @@ class BacktestEngine:
         """
         trades: list[Trade] = []
         for ticker in tickers:
-            trades.extend(self._trade_ticker(
-                model, ticker, data_client, start_date, end_date,
-                threshold=threshold, holding_days=holding_days,
-            ))
+            trades.extend(
+                self._trade_ticker(
+                    model,
+                    ticker,
+                    data_client,
+                    start_date,
+                    end_date,
+                    threshold=threshold,
+                    holding_days=holding_days,
+                )
+            )
 
         if not trades:
             return BacktestResult()
@@ -137,8 +144,14 @@ class BacktestEngine:
                 if exit_idx >= len(all_days):
                     break  # not enough future data to close the position
                 trade = self._build_trade(
-                    ticker, direction, d, all_days[exit_idx],
-                    price_map, holding_days, signal.reasoning, dict(signal.metadata),
+                    ticker,
+                    direction,
+                    d,
+                    all_days[exit_idx],
+                    price_map,
+                    holding_days,
+                    signal.reasoning,
+                    dict(signal.metadata),
                 )
                 if trade is not None:
                     trades.append(trade)
@@ -294,6 +307,7 @@ class BacktestEngine:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _parse_date(s: str) -> date:
     return datetime.strptime(s[:10], "%Y-%m-%d").date()

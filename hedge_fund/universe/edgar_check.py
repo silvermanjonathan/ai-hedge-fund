@@ -31,7 +31,9 @@ def files_domestic_reports(edgar: EdgarClient, ticker: str) -> tuple[bool, str |
     return True, None
 
 
-def edgar_filter(tickers: Iterable[str], *, edgar: EdgarClient, limit: int | None = None) -> tuple[list[str], list[tuple[str, str]]]:
+def edgar_filter(
+    tickers: Iterable[str], *, edgar: EdgarClient, limit: int | None = None
+) -> tuple[list[str], list[tuple[str, str]]]:
     """Tickers that file 10-K/10-Q, in the given order, stopping once *limit*
     are kept; plus (ticker, reason) for each one dropped along the way."""
     kept: list[str] = []

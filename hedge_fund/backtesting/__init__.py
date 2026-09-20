@@ -2,16 +2,12 @@
 
 from hedge_fund.backtesting.engine import BacktestEngine
 from hedge_fund.backtesting.fund import (
+    backtest_fund,
     FundBacktestMetrics,
     FundBacktestResult,
-    backtest_fund,
     rebalance_grid,
 )
-from hedge_fund.backtesting.models import (
-    BacktestResult,
-    PerformanceMetrics,
-    Trade,
-)
+from hedge_fund.backtesting.models import BacktestResult, PerformanceMetrics, Trade
 
 __all__ = [
     "BacktestEngine",

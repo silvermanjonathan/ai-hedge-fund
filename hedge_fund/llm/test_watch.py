@@ -11,8 +11,7 @@ from __future__ import annotations
 from hedge_fund.llm.watch import ThesisStream
 
 ANSWER = (
-    '{"signal": "bearish", "confidence": 78, '
-    '"reasoning": "The multiple prices in a decade of flawless execution."}'
+    '{"signal": "bearish", "confidence": 78, ' '"reasoning": "The multiple prices in a decade of flawless execution."}'
 )
 
 
@@ -45,7 +44,7 @@ class TestOrder:
         stream = ThesisStream()
         stream.feed('{"signal": "bullish", "confidence": 7')
         assert stream.confidence is None
-        stream.feed('8,')
+        stream.feed("8,")
         assert stream.confidence == 78.0
 
     def test_nothing_decodable_yet(self):
@@ -63,7 +62,10 @@ class TestChunking:
         whole.feed(ANSWER)
         piecemeal = feed_char_by_char(ANSWER)
         assert (piecemeal.signal, piecemeal.confidence, piecemeal.thesis) == (
-            whole.signal, whole.confidence, whole.thesis)
+            whole.signal,
+            whole.confidence,
+            whole.thesis,
+        )
 
     def test_thesis_only_grows(self):
         """It types out — it never rewinds, which would look like a glitch."""

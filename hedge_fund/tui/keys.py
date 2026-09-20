@@ -25,7 +25,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from hedge_fund.llm import PROVIDER_ENV_VARS, env_var_for  # noqa: F401  (re-export)
+from hedge_fund.llm import env_var_for, PROVIDER_ENV_VARS  # noqa: F401  (re-export)
 from hedge_fund.paths import ENV_PATH
 
 
@@ -49,9 +49,7 @@ def save_credential(env_var: str, value: str) -> Path:
         original = ENV_PATH.read_text()
         # Match an assignment at the start of a line, optionally exported and
         # optionally commented-out, so re-saving a disabled key revives it.
-        pattern = re.compile(
-            rf"^[ \t]*#?[ \t]*(?:export[ \t]+)?{re.escape(env_var)}[ \t]*=.*$",
-            re.MULTILINE)
+        pattern = re.compile(rf"^[ \t]*#?[ \t]*(?:export[ \t]+)?{re.escape(env_var)}[ \t]*=.*$", re.MULTILINE)
         updated, count = pattern.subn(lambda _: line, original, count=1)
         if count == 0:
             sep = "" if not original or original.endswith("\n") else "\n"

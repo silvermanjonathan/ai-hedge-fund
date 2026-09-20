@@ -12,10 +12,10 @@ from hedge_fund.data.models import Price
 from hedge_fund.models import Signal
 from hedge_fund.signals.base import AlphaModel
 
-
 # ---------------------------------------------------------------------------
 # Test doubles
 # ---------------------------------------------------------------------------
+
 
 class FixedAlpha(AlphaModel):
     """Alpha model that fires a fixed conviction on chosen dates.
@@ -35,7 +35,9 @@ class FixedAlpha(AlphaModel):
     def predict(self, ticker, date, data_client) -> Signal:
         fires = self._fire_dates is None or date in self._fire_dates
         return Signal(
-            model_name="fixed", ticker=ticker, date=date,
+            model_name="fixed",
+            ticker=ticker,
+            date=date,
             value=self._value if fires else 0.0,
         )
 
@@ -56,10 +58,16 @@ def _make_prices(start_price: float, days: int, daily_change: float = 0.01) -> l
     for _ in range(days):
         while d.weekday() >= 5:  # skip weekends
             d += timedelta(days=1)
-        prices.append(Price(
-            open=price, close=price, high=price + 1, low=price - 1,
-            volume=1_000_000, time=d.isoformat(),
-        ))
+        prices.append(
+            Price(
+                open=price,
+                close=price,
+                high=price + 1,
+                low=price - 1,
+                volume=1_000_000,
+                time=d.isoformat(),
+            )
+        )
         price = round(price * (1 + daily_change), 2)
         d += timedelta(days=1)
     return prices
@@ -69,6 +77,7 @@ def _make_prices(start_price: float, days: int, daily_change: float = 0.01) -> l
 # run_alpha — fills, sizing, P&L
 # ---------------------------------------------------------------------------
 
+
 class TestRunAlpha:
     def test_long_trade_profits_when_price_rises(self):
         prices = _make_prices(100.0, 20, daily_change=0.01)
@@ -76,8 +85,12 @@ class TestRunAlpha:
         fire = prices[0].time[:10]
 
         result = BacktestEngine(per_trade=10_000).run_alpha(
-            FixedAlpha(1.0, {fire}), ["TEST"], fd,
-            prices[0].time[:10], prices[10].time[:10], holding_days=5,
+            FixedAlpha(1.0, {fire}),
+            ["TEST"],
+            fd,
+            prices[0].time[:10],
+            prices[10].time[:10],
+            holding_days=5,
         )
         assert len(result.trades) == 1
         t = result.trades[0]
@@ -92,8 +105,12 @@ class TestRunAlpha:
         fire = prices[0].time[:10]
 
         result = BacktestEngine().run_alpha(
-            FixedAlpha(-1.0, {fire}), ["TEST"], fd,
-            prices[0].time[:10], prices[10].time[:10], holding_days=5,
+            FixedAlpha(-1.0, {fire}),
+            ["TEST"],
+            fd,
+            prices[0].time[:10],
+            prices[10].time[:10],
+            holding_days=5,
         )
         assert len(result.trades) == 1
         assert result.trades[0].direction == "short"
@@ -105,8 +122,12 @@ class TestRunAlpha:
         fire = prices[0].time[:10]
 
         result = BacktestEngine(per_trade=10_000).run_alpha(
-            FixedAlpha(1.0, {fire}), ["TEST"], fd,
-            prices[0].time[:10], prices[10].time[:10], holding_days=5,
+            FixedAlpha(1.0, {fire}),
+            ["TEST"],
+            fd,
+            prices[0].time[:10],
+            prices[10].time[:10],
+            holding_days=5,
         )
         assert result.trades[0].shares == 200.0  # 10_000 / 50
 
@@ -116,8 +137,12 @@ class TestRunAlpha:
         fire = prices[0].time[:10]
 
         result = BacktestEngine(capital=50_000).run_alpha(
-            FixedAlpha(1.0, {fire}), ["TEST"], fd,
-            prices[0].time[:10], prices[10].time[:10], holding_days=5,
+            FixedAlpha(1.0, {fire}),
+            ["TEST"],
+            fd,
+            prices[0].time[:10],
+            prices[10].time[:10],
+            holding_days=5,
         )
         assert result.equity_curve[0] == 50_000
         assert result.equity_curve[-1] == 50_000 + result.trades[0].pnl
@@ -126,8 +151,11 @@ class TestRunAlpha:
         prices = _make_prices(100.0, 20)
         fd = MockFDClient(prices)
         result = BacktestEngine().run_alpha(
-            FixedAlpha(0.0), ["TEST"], fd,
-            prices[0].time[:10], prices[10].time[:10],
+            FixedAlpha(0.0),
+            ["TEST"],
+            fd,
+            prices[0].time[:10],
+            prices[10].time[:10],
         )
         assert result.trades == []
         assert result.metrics is None
@@ -135,7 +163,11 @@ class TestRunAlpha:
     def test_no_prices_skips_ticker(self):
         fd = MockFDClient([])
         result = BacktestEngine().run_alpha(
-            FixedAlpha(1.0), ["FAKE"], fd, "2025-08-04", "2025-08-15",
+            FixedAlpha(1.0),
+            ["FAKE"],
+            fd,
+            "2025-08-04",
+            "2025-08-15",
         )
         assert result.trades == []
 
@@ -146,8 +178,12 @@ class TestRunAlpha:
         fire1, fire2 = prices[0].time[:10], prices[12].time[:10]
 
         result = BacktestEngine().run_alpha(
-            FixedAlpha(1.0, {fire1, fire2}), ["TEST"], fd,
-            prices[0].time[:10], prices[20].time[:10], holding_days=5,
+            FixedAlpha(1.0, {fire1, fire2}),
+            ["TEST"],
+            fd,
+            prices[0].time[:10],
+            prices[20].time[:10],
+            holding_days=5,
         )
         assert len(result.trades) == 2
         # Second entry must be on/after the first exit (no overlap)
@@ -158,8 +194,12 @@ class TestRunAlpha:
         prices = _make_prices(100.0, 20)
         fd = MockFDClient(prices)
         result = BacktestEngine().run_alpha(
-            FixedAlpha(1.0, None), ["TEST"], fd,
-            prices[0].time[:10], prices[10].time[:10], holding_days=5,
+            FixedAlpha(1.0, None),
+            ["TEST"],
+            fd,
+            prices[0].time[:10],
+            prices[10].time[:10],
+            holding_days=5,
         )
         assert len(result.trades) == 1
 
@@ -175,8 +215,12 @@ class TestMetrics:
                 return up if ticker == "UP" else down
 
         result = BacktestEngine().run_alpha(
-            FixedAlpha(1.0, {fire}), ["UP", "DOWN"], PerTickerMock(),
-            up[0].time[:10], up[10].time[:10], holding_days=5,
+            FixedAlpha(1.0, {fire}),
+            ["UP", "DOWN"],
+            PerTickerMock(),
+            up[0].time[:10],
+            up[10].time[:10],
+            holding_days=5,
         )
         assert result.metrics.n_trades == 2
         assert result.metrics.n_long == 2
@@ -196,17 +240,23 @@ pytestmark_live = pytest.mark.skipif(
 @pytest.fixture(scope="module")
 def fd():
     from hedge_fund.data import FDClient
+
     with FDClient() as client:
         yield client
 
 
 @pytestmark_live
 def test_pead_alpha_live(fd):
-    from hedge_fund.signals import PEADModel
     import math
 
+    from hedge_fund.signals import PEADModel
+
     result = BacktestEngine().run_alpha(
-        PEADModel(), ["AAPL"], fd, "2024-06-01", date.today().isoformat(),
+        PEADModel(),
+        ["AAPL"],
+        fd,
+        "2024-06-01",
+        date.today().isoformat(),
         holding_days=5,
     )
     assert len(result.trades) > 0

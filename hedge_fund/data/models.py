@@ -8,13 +8,13 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-
 _IGNORE = {"extra": "ignore"}
 
 
 # ---------------------------------------------------------------------------
 # Prices
 # ---------------------------------------------------------------------------
+
 
 class Price(BaseModel):
     """Single OHLCV bar from /prices."""
@@ -32,6 +32,7 @@ class Price(BaseModel):
 # ---------------------------------------------------------------------------
 # Financial Metrics
 # ---------------------------------------------------------------------------
+
 
 class FinancialMetrics(BaseModel):
     """Financial ratios and per-share metrics from /financial-metrics.
@@ -110,6 +111,7 @@ class FinancialMetrics(BaseModel):
 # Insider Trades
 # ---------------------------------------------------------------------------
 
+
 class InsiderTrade(BaseModel):
     """Single insider transaction from /insider-trades."""
 
@@ -135,6 +137,7 @@ class InsiderTrade(BaseModel):
 # News
 # ---------------------------------------------------------------------------
 
+
 class CompanyNews(BaseModel):
     """Single news article from /news."""
 
@@ -150,6 +153,7 @@ class CompanyNews(BaseModel):
 # ---------------------------------------------------------------------------
 # Company Facts
 # ---------------------------------------------------------------------------
+
 
 class CompanyFacts(BaseModel):
     """Company metadata from /company/facts."""
@@ -174,6 +178,7 @@ class CompanyFacts(BaseModel):
 # ---------------------------------------------------------------------------
 # Earnings
 # ---------------------------------------------------------------------------
+
 
 class EarningsData(BaseModel):
     """Financial data for a single earnings period (quarterly or annual)."""
@@ -258,6 +263,7 @@ class EarningsRecord(BaseModel):
 # ---------------------------------------------------------------------------
 # SEC Filings
 # ---------------------------------------------------------------------------
+
 
 class Filing(BaseModel):
     """Single SEC filing from /filings."""

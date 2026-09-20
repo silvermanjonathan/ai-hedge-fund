@@ -69,25 +69,45 @@ class FreeDataClient:
     # DataClient protocol
     # ------------------------------------------------------------------
 
-    def get_prices(self, ticker: str, start_date: str, end_date: str, interval: str = "day", interval_multiplier: int = 1) -> list[Price]:
+    def get_prices(
+        self, ticker: str, start_date: str, end_date: str, interval: str = "day", interval_multiplier: int = 1
+    ) -> list[Price]:
         if interval != "day" or interval_multiplier != 1:
-            raise NotImplementedError(_UNSUPPORTED.format(method=f"get_prices(interval={interval!r}, interval_multiplier={interval_multiplier})", why="only daily bars are served"))
+            raise NotImplementedError(
+                _UNSUPPORTED.format(
+                    method=f"get_prices(interval={interval!r}, interval_multiplier={interval_multiplier})",
+                    why="only daily bars are served",
+                )
+            )
         return self._prices.daily_bars(ticker, start_date, end_date)
 
-    def get_financial_metrics(self, ticker: str, end_date: str, period: str = "ttm", limit: int = 10) -> list[FinancialMetrics]:
+    def get_financial_metrics(
+        self, ticker: str, end_date: str, period: str = "ttm", limit: int = 10
+    ) -> list[FinancialMetrics]:
         """Point-in-time ttm rows: filed on or before *end_date*, newest first."""
         if period != "ttm":
-            raise NotImplementedError(_UNSUPPORTED.format(method=f"get_financial_metrics(period={period!r})", why="only trailing-twelve-month rows are computed"))
+            raise NotImplementedError(
+                _UNSUPPORTED.format(
+                    method=f"get_financial_metrics(period={period!r})",
+                    why="only trailing-twelve-month rows are computed",
+                )
+            )
         cik = self._edgar.cik_for(ticker)
         if cik is None:
             return []
         return point_in_time(self._rows(ticker, cik), end_date, limit)
 
-    def get_news(self, ticker: str, end_date: str, start_date: str | None = None, limit: int = 1000) -> list[CompanyNews]:
+    def get_news(
+        self, ticker: str, end_date: str, start_date: str | None = None, limit: int = 1000
+    ) -> list[CompanyNews]:
         raise NotImplementedError(_UNSUPPORTED.format(method="get_news", why="there is no free news feed"))
 
-    def get_insider_trades(self, ticker: str, end_date: str, start_date: str | None = None, limit: int = 1000) -> list[InsiderTrade]:
-        raise NotImplementedError(_UNSUPPORTED.format(method="get_insider_trades", why="Form 4 parsing is not implemented"))
+    def get_insider_trades(
+        self, ticker: str, end_date: str, start_date: str | None = None, limit: int = 1000
+    ) -> list[InsiderTrade]:
+        raise NotImplementedError(
+            _UNSUPPORTED.format(method="get_insider_trades", why="Form 4 parsing is not implemented")
+        )
 
     def get_company_facts(self, ticker: str) -> CompanyFacts | None:
         cik = self._edgar.cik_for(ticker)
@@ -112,10 +132,20 @@ class FreeDataClient:
         )
 
     def get_earnings(self, ticker: str) -> Earnings | None:
-        raise NotImplementedError(_UNSUPPORTED.format(method="get_earnings", why="EDGAR carries no consensus estimates, so the surprise fields cannot be filled"))
+        raise NotImplementedError(
+            _UNSUPPORTED.format(
+                method="get_earnings",
+                why="EDGAR carries no consensus estimates, so the surprise fields cannot be filled",
+            )
+        )
 
     def get_earnings_history(self, ticker: str, limit: int = 12) -> list[EarningsRecord]:
-        raise NotImplementedError(_UNSUPPORTED.format(method="get_earnings_history", why="EDGAR carries no consensus estimates, so BEAT/MISS surprises cannot be labelled"))
+        raise NotImplementedError(
+            _UNSUPPORTED.format(
+                method="get_earnings_history",
+                why="EDGAR carries no consensus estimates, so BEAT/MISS surprises cannot be labelled",
+            )
+        )
 
     def get_market_cap(self, ticker: str, end_date: str) -> float | None:
         """Last close on or before *end_date* × shares outstanding as last

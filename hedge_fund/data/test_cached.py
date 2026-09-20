@@ -13,8 +13,7 @@ class CountingClient:
 
     def get_prices(self, ticker, start_date, end_date, interval="day", interval_multiplier=1):
         self.calls += 1
-        return [Price(open=1.0, close=2.0, high=2.0, low=1.0, volume=100,
-                      time=f"{start_date}T00:00:00Z")]
+        return [Price(open=1.0, close=2.0, high=2.0, low=1.0, volume=100, time=f"{start_date}T00:00:00Z")]
 
     def get_company_facts(self, ticker):
         self.calls += 1
@@ -50,8 +49,7 @@ def test_different_params_different_entries(tmp_path):
 def test_refresh_busts_cache(tmp_path):
     inner = CountingClient()
     CachedDataClient(inner, cache_dir=tmp_path).get_prices("AAPL", "2024-01-01", "2024-12-31")
-    CachedDataClient(inner, cache_dir=tmp_path, refresh=True).get_prices(
-        "AAPL", "2024-01-01", "2024-12-31")
+    CachedDataClient(inner, cache_dir=tmp_path, refresh=True).get_prices("AAPL", "2024-01-01", "2024-12-31")
 
     assert inner.calls == 2
 

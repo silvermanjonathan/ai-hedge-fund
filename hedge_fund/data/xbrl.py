@@ -51,7 +51,12 @@ _QUARTER_GAP = (80, 100)  # days between consecutive balance-sheet dates
 _LONGEST_FIRST = ("FY", "9M", "H", "Q")
 
 # us-gaap tags per input, in priority order. Resolved per period end.
-REVENUE = ("Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet", "RevenueFromContractWithCustomerIncludingAssessedTax")
+REVENUE = (
+    "Revenues",
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "SalesRevenueNet",
+    "RevenueFromContractWithCustomerIncludingAssessedTax",
+)
 NET_INCOME = ("NetIncomeLoss", "ProfitLoss", "NetIncomeLossAvailableToCommonStockholdersBasic")
 GROSS_PROFIT = ("GrossProfit",)
 COST_OF_REVENUE = ("CostOfRevenue", "CostOfGoodsAndServicesSold", "CostOfGoodsSold")
@@ -59,7 +64,10 @@ OPERATING_INCOME = ("OperatingIncomeLoss",)
 EQUITY = ("StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest")
 ASSETS_CURRENT = ("AssetsCurrent",)
 LIABILITIES_CURRENT = ("LiabilitiesCurrent",)
-OPERATING_CASH_FLOW = ("NetCashProvidedByUsedInOperatingActivities", "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations")
+OPERATING_CASH_FLOW = (
+    "NetCashProvidedByUsedInOperatingActivities",
+    "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+)
 CAPEX = ("PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets")
 DEBT_NONCURRENT = ("LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations")
 DEBT_TOTAL = ("LongTermDebt",)  # used as the whole when no noncurrent tag exists
@@ -130,7 +138,16 @@ def _parse(entries: Iterable[dict]) -> list[Fact]:
             if form not in FORMS:
                 continue
             start = date.fromisoformat(e["start"]) if e.get("start") else None
-            facts.append(Fact(start=start, end=date.fromisoformat(e["end"]), val=float(e["val"]), filed=date.fromisoformat(e["filed"]), accn=str(e.get("accn", "")), form=form))
+            facts.append(
+                Fact(
+                    start=start,
+                    end=date.fromisoformat(e["end"]),
+                    val=float(e["val"]),
+                    filed=date.fromisoformat(e["filed"]),
+                    accn=str(e.get("accn", "")),
+                    form=form,
+                )
+            )
         except (KeyError, TypeError, ValueError):
             continue  # a malformed entry is not evidence
     return facts
@@ -161,7 +178,9 @@ def instant_at(book: FactBook, tags: Iterable[str], end: date, cutoff: date, uni
     return None
 
 
-def quarter_at(book: FactBook, tag: str, end: date, prev_end: date | None, cutoff: date, unit: str = "USD") -> float | None:
+def quarter_at(
+    book: FactBook, tag: str, end: date, prev_end: date | None, cutoff: date, unit: str = "USD"
+) -> float | None:
     """One quarter of *tag* ending at *end*: a quarterly fact, else a
     year-to-date fact minus the same tag's year-to-date fact ending at
     *prev_end* with the same start (Q4 = FY − 9M). Same tag only."""
@@ -179,7 +198,9 @@ def quarter_at(book: FactBook, tag: str, end: date, prev_end: date | None, cutof
     return None
 
 
-def quarter_first(book: FactBook, tags: Iterable[str], end: date, prev_end: date | None, cutoff: date, unit: str = "USD") -> float | None:
+def quarter_first(
+    book: FactBook, tags: Iterable[str], end: date, prev_end: date | None, cutoff: date, unit: str = "USD"
+) -> float | None:
     """The quarter from the first tag that yields one at this period end."""
     for tag in tags:
         value = quarter_at(book, tag, end, prev_end, cutoff, unit)
@@ -353,14 +374,20 @@ def build_rows(companyfacts: dict, *, ticker: str, history: DailyHistory | None 
             currency="USD",
             filing_date=cutoff.isoformat(),
             market_cap=_sig(market_cap),
-            price_to_earnings_ratio=_sig(_ratio(market_cap, net_income) if net_income is not None and net_income > 0 else None),
+            price_to_earnings_ratio=_sig(
+                _ratio(market_cap, net_income) if net_income is not None and net_income > 0 else None
+            ),
             return_on_equity=_r6(_ratio(net_income, equity) if equity > 0 else None),
             gross_margin=_r6(_ratio(gross_profit, revenue)),
             operating_margin=_r6(_ratio(operating_income, revenue)),
             net_margin=_r6(_ratio(net_income, revenue)),
             debt_to_equity=_r6(_ratio(debt, equity) if equity > 0 else None),
             current_ratio=_r6(_ratio(assets_current, liabilities_current)),
-            revenue_growth=_r6(_ratio(revenue, revenue_year_ago) - 1 if revenue is not None and revenue_year_ago and revenue_year_ago > 0 else None),
+            revenue_growth=_r6(
+                _ratio(revenue, revenue_year_ago) - 1
+                if revenue is not None and revenue_year_ago and revenue_year_ago > 0
+                else None
+            ),
             earnings_per_share=_r6(eps),
             book_value_per_share=_r6(_ratio(equity, shares)),
             free_cash_flow_per_share=_r6(_ratio(fcf, shares)),

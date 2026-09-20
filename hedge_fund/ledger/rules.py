@@ -85,12 +85,21 @@ def resilience_confirmed(v: Verdicts, cfg: PlaybookConfig) -> str | None:
 
 
 def forensic_warning(v: Verdicts, cfg: PlaybookConfig) -> str | None:
-    flags = [f"{s} bearish at {v[s]['confidence']:g}" for s in FORENSIC_SCHOOLS if s in v and v[s]["signal"] == "bearish" and (v[s].get("confidence") or 0) >= cfg.warning_conf]
+    flags = [
+        f"{s} bearish at {v[s]['confidence']:g}"
+        for s in FORENSIC_SCHOOLS
+        if s in v and v[s]["signal"] == "bearish" and (v[s].get("confidence") or 0) >= cfg.warning_conf
+    ]
     return "; ".join(flags) or None
 
 
-LONG_RULES: tuple[tuple[str, Callable[[Verdicts, PlaybookConfig], str | None]], ...] = (("consensus_long", consensus_long), ("resilience_confirmed", resilience_confirmed))
-SHORT_RULES: tuple[tuple[str, Callable[[Verdicts, PlaybookConfig], str | None]], ...] = (("consensus_short", consensus_short),)
+LONG_RULES: tuple[tuple[str, Callable[[Verdicts, PlaybookConfig], str | None]], ...] = (
+    ("consensus_long", consensus_long),
+    ("resilience_confirmed", resilience_confirmed),
+)
+SHORT_RULES: tuple[tuple[str, Callable[[Verdicts, PlaybookConfig], str | None]], ...] = (
+    ("consensus_short", consensus_short),
+)
 
 
 def same_filing_verdicts(latest_rows: Mapping[tuple[str, str], dict]) -> dict[str, dict[str, dict]]:
@@ -152,7 +161,9 @@ def render_candidates(candidates: list[Candidate], config: PlaybookConfig | None
     lines += [head, "-" * len(head)]
     for c in candidates:
         conf = "-" if c.mean_conf_of_agreeing is None else f"{c.mean_conf_of_agreeing:.0f}"
-        lines.append(f"{c.ticker:7}| {c.direction:5} | {', '.join(c.rules_fired):36} | {conf:>5} | {len(c.schools_bullish):>4} {len(c.schools_bearish):>4} {len(c.schools_neutral):>4} | {c.filing_date or '-':10} | {'; '.join(c.warnings)}")
+        lines.append(
+            f"{c.ticker:7}| {c.direction:5} | {', '.join(c.rules_fired):36} | {conf:>5} | {len(c.schools_bullish):>4} {len(c.schools_bearish):>4} {len(c.schools_neutral):>4} | {c.filing_date or '-':10} | {'; '.join(c.warnings)}"
+        )
     return "\n".join(lines)
 
 

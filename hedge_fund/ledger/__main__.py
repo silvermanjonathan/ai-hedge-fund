@@ -30,8 +30,13 @@ from hedge_fund.tui.keys import apply_credentials
 
 def main(argv: list[str] | None = None) -> None:
     apply_credentials()
-    parser = argparse.ArgumentParser(prog="aihf-ledger", description="Verdict ledger, scorecard, and playbook. Candidates and scores only — never orders.")
-    parser.add_argument("--ledger", default=str(DEFAULT_LEDGER_PATH), help=f"ledger file (default {DEFAULT_LEDGER_PATH})")
+    parser = argparse.ArgumentParser(
+        prog="aihf-ledger",
+        description="Verdict ledger, scorecard, and playbook. Candidates and scores only — never orders.",
+    )
+    parser.add_argument(
+        "--ledger", default=str(DEFAULT_LEDGER_PATH), help=f"ledger file (default {DEFAULT_LEDGER_PATH})"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_ingest = sub.add_parser("ingest", help="log the new verdicts in one or more CycleRecord files")
@@ -69,7 +74,9 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     if args.command == "candidates":
-        cfg = PlaybookConfig(min_schools=args.min_schools, min_conf=args.min_conf, follow=args.follow, follow_conf=args.follow_conf)
+        cfg = PlaybookConfig(
+            min_schools=args.min_schools, min_conf=args.min_conf, follow=args.follow, follow_conf=args.follow_conf
+        )
         candidates = playbook(ledger.latest_per_ticker_school(), cfg)
         # Are the verdicts a quarter behind the filings? Ask EDGAR submissions.
         try:

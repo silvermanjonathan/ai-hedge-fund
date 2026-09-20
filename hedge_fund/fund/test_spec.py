@@ -6,10 +6,10 @@ from pydantic import ValidationError
 from hedge_fund.fund.spec import (
     Fund,
     FundSpec,
-    StrategySpec,
     load_spec,
     load_strategy,
     normalize_universe,
+    StrategySpec,
 )
 
 MINIMAL = {
@@ -43,12 +43,7 @@ def test_yaml_load_happy_path(tmp_path):
 
 def test_load_strategy(tmp_path):
     path = tmp_path / "value.yaml"
-    path.write_text(
-        "name: value\n"
-        "models:\n"
-        "  - name: buffett\n"
-        "  - name: pead\n"
-    )
+    path.write_text("name: value\n" "models:\n" "  - name: buffett\n" "  - name: pead\n")
     strategy = load_strategy(path)
     assert strategy.name == "value"
     assert strategy.weight == 1.0  # slices are a fund-assembly concern

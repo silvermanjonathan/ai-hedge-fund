@@ -25,8 +25,19 @@ from __future__ import annotations
 import logging
 
 from hedge_fund.data.protocol import DataClient
-from hedge_fund.features.snapshot import FundamentalsSnapshot, InsufficientData, build_snapshot
-from hedge_fund.llm import LLMClient, LLMRefusal, PromptCache, extract_json, make_llm, prompt_key
+from hedge_fund.features.snapshot import (
+    build_snapshot,
+    FundamentalsSnapshot,
+    InsufficientData,
+)
+from hedge_fund.llm import (
+    extract_json,
+    LLMClient,
+    LLMRefusal,
+    make_llm,
+    prompt_key,
+    PromptCache,
+)
 from hedge_fund.models import AnalystVerdict, Signal
 from hedge_fund.signals.base import AlphaModel
 

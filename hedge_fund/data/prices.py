@@ -65,11 +65,17 @@ class DailyHistory:
         return None
 
     def to_json(self) -> dict:
-        return {"closes": {d.isoformat(): c for d, c in self.closes.items()}, "splits": {d.isoformat(): r for d, r in self.splits.items()}}
+        return {
+            "closes": {d.isoformat(): c for d, c in self.closes.items()},
+            "splits": {d.isoformat(): r for d, r in self.splits.items()},
+        }
 
     @classmethod
     def from_json(cls, payload: dict) -> DailyHistory:
-        return cls(closes={date.fromisoformat(d): float(c) for d, c in payload.get("closes", {}).items()}, splits={date.fromisoformat(d): float(r) for d, r in payload.get("splits", {}).items()})
+        return cls(
+            closes={date.fromisoformat(d): float(c) for d, c in payload.get("closes", {}).items()},
+            splits={date.fromisoformat(d): float(r) for d, r in payload.get("splits", {}).items()},
+        )
 
 
 @runtime_checkable
@@ -97,7 +103,12 @@ class YFinancePrices:
     with a pandas-returning ``history(**kwargs)``.
     """
 
-    def __init__(self, ticker_factory: TickerFactory | None = None, cache_dir: Path | str = DEFAULT_CACHE_DIR, history_ttl: float = _DAY) -> None:
+    def __init__(
+        self,
+        ticker_factory: TickerFactory | None = None,
+        cache_dir: Path | str = DEFAULT_CACHE_DIR,
+        history_ttl: float = _DAY,
+    ) -> None:
         self._dir = Path(cache_dir)
         self._ttl = history_ttl
         self._ticker_factory = ticker_factory or self._default_factory
@@ -106,7 +117,9 @@ class YFinancePrices:
     def daily_bars(self, ticker: str, start_date: str, end_date: str) -> list[Price]:
         # yfinance's end is exclusive; the DataClient contract is inclusive.
         end_exclusive = (date.fromisoformat(end_date) + timedelta(days=1)).isoformat()
-        frame = self._fetch(ticker, start=start_date, end=end_exclusive, interval="1d", auto_adjust=False, actions=False)
+        frame = self._fetch(
+            ticker, start=start_date, end=end_exclusive, interval="1d", auto_adjust=False, actions=False
+        )
         if frame is None or len(frame) == 0:
             return []
         bars: list[Price] = []
@@ -141,7 +154,9 @@ class YFinancePrices:
             if frame is not None and len(frame) > 0:
                 history.closes = {_day_of(stamp): float(c) for stamp, c in frame["Close"].items() if c == c}
                 if "Stock Splits" in frame:
-                    history.splits = {_day_of(stamp): float(s) for stamp, s in frame["Stock Splits"].items() if s and s == s}
+                    history.splits = {
+                        _day_of(stamp): float(s) for stamp, s in frame["Stock Splits"].items() if s and s == s
+                    }
             self._write_history(symbol, history)
         with _HISTORY_LOCK:
             _HISTORY_MEMO[symbol] = (now, history)

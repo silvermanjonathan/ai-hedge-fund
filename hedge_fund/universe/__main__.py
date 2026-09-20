@@ -30,12 +30,19 @@ from hedge_fund.universe.finviz import fetch, FinvizError, PRESETS, resolve
 
 def main() -> None:
     apply_credentials()
-    parser = argparse.ArgumentParser(prog="aihf-universe", description="Print a ticker universe from a Finviz Elite screen (needs FINVIZ_AUTH_TOKEN).")
+    parser = argparse.ArgumentParser(
+        prog="aihf-universe",
+        description="Print a ticker universe from a Finviz Elite screen (needs FINVIZ_AUTH_TOKEN).",
+    )
     parser.add_argument("universe", help=f"a preset ({', '.join(PRESETS)}) or a raw Finviz filter string")
     parser.add_argument("--limit", type=int, default=None, help="keep only the first N tickers, in export order")
     parser.add_argument("--refresh", action="store_true", help="ignore the one-day disk cache and fetch again")
     parser.add_argument("--json", action="store_true", help="print a JSON array instead of a comma-separated list")
-    parser.add_argument("--no-edgar-check", action="store_true", help="skip the EDGAR post-filter that drops tickers with no CIK or no 10-K/10-Q on file")
+    parser.add_argument(
+        "--no-edgar-check",
+        action="store_true",
+        help="skip the EDGAR post-filter that drops tickers with no CIK or no 10-K/10-Q on file",
+    )
     args = parser.parse_args()
 
     preset, _ = resolve(args.universe)
@@ -53,7 +60,10 @@ def main() -> None:
         except EdgarError as exc:
             sys.exit(f"aihf-universe: {exc} (or pass --no-edgar-check)")
 
-    print(f"aihf-universe: {preset or 'custom filters'} -> {len(screened)} screened, {len(tickers)} kept, {len(dropped)} dropped", file=sys.stderr)
+    print(
+        f"aihf-universe: {preset or 'custom filters'} -> {len(screened)} screened, {len(tickers)} kept, {len(dropped)} dropped",
+        file=sys.stderr,
+    )
     for ticker, reason in dropped:
         print(f"aihf-universe: dropped {ticker}: {reason}", file=sys.stderr)
     print(json.dumps(tickers) if args.json else ",".join(tickers))

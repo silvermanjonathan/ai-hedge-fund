@@ -27,7 +27,22 @@ DEFAULT_LEDGER_PATH = USER_DIR / "ledger" / "verdicts.jsonl"
 BENCHMARK = "SPY"
 _PRICE_LOOKBACK_DAYS = 7
 
-FIELDS = ("key", "school", "ticker", "snapshot_hash", "filing_date", "signal", "confidence", "value", "desk", "event_date", "logged_at", "entry_close", "spy_close", "thesis")
+FIELDS = (
+    "key",
+    "school",
+    "ticker",
+    "snapshot_hash",
+    "filing_date",
+    "signal",
+    "confidence",
+    "value",
+    "desk",
+    "event_date",
+    "logged_at",
+    "entry_close",
+    "spy_close",
+    "thesis",
+)
 
 
 @dataclass(frozen=True)

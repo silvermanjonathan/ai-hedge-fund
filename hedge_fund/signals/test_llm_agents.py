@@ -6,15 +6,15 @@ import pytest
 
 from hedge_fund.data.client import FDClientError
 from hedge_fund.data.models import FinancialMetrics
-from hedge_fund.llm import LLMRefusal, PromptCache, extract_json
+from hedge_fund.llm import extract_json, LLMRefusal, PromptCache
 from hedge_fund.llm.client import LLMParseError
 from hedge_fund.models import Signal
 from hedge_fund.signals import BuffettAgent
 
-
 # ---------------------------------------------------------------------------
 # Fakes
 # ---------------------------------------------------------------------------
+
 
 class FakeLLM:
     """Canned-response LLM; counts calls; can raise instead."""
@@ -48,12 +48,25 @@ class MockDataClient:
 
 
 def _history(n=8):
-    quarters = ["2024-12-31", "2024-09-30", "2024-06-30", "2024-03-31",
-                "2023-12-31", "2023-09-30", "2023-06-30", "2023-03-31"]
+    quarters = [
+        "2024-12-31",
+        "2024-09-30",
+        "2024-06-30",
+        "2024-03-31",
+        "2023-12-31",
+        "2023-09-30",
+        "2023-06-30",
+        "2023-03-31",
+    ]
     return [
         FinancialMetrics(
-            ticker="TEST", report_period=q, period="ttm", filing_date=q,
-            return_on_equity=0.2, gross_margin=0.4, book_value_per_share=10.0,
+            ticker="TEST",
+            report_period=q,
+            period="ttm",
+            filing_date=q,
+            return_on_equity=0.2,
+            gross_margin=0.4,
+            book_value_per_share=10.0,
             market_cap=1e9,
         )
         for q in quarters[:n]
@@ -71,11 +84,15 @@ def _agent(tmp_path, llm):
 # Signal folding
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("signal,confidence,expected", [
-    ("bullish", 80, 0.8),
-    ("bearish", 60, -0.6),
-    ("neutral", 90, 0.0),
-])
+
+@pytest.mark.parametrize(
+    "signal,confidence,expected",
+    [
+        ("bullish", 80, 0.8),
+        ("bearish", 60, -0.6),
+        ("neutral", 90, 0.0),
+    ],
+)
 def test_value_folding(tmp_path, signal, confidence, expected):
     response = json.dumps({"signal": signal, "confidence": confidence, "reasoning": "r"})
     agent = _agent(tmp_path, FakeLLM(response))
@@ -91,6 +108,7 @@ def test_value_folding(tmp_path, signal, confidence, expected):
 # ---------------------------------------------------------------------------
 # Failure contract
 # ---------------------------------------------------------------------------
+
 
 def test_malformed_json_abstains(tmp_path):
     agent = _agent(tmp_path, FakeLLM("I am bullish, trust me."))
@@ -135,6 +153,7 @@ def test_data_layer_error_propagates(tmp_path):
 # ---------------------------------------------------------------------------
 # Cache = persistence
 # ---------------------------------------------------------------------------
+
 
 def test_cache_hit_skips_llm_call(tmp_path):
     llm = FakeLLM(BULLISH)
@@ -207,6 +226,7 @@ def test_failed_parse_still_persists_response(tmp_path):
 # Registry
 # ---------------------------------------------------------------------------
 
+
 def test_registry_names_match_keys(tmp_path):
     """Every registry entry instantiates and reports its own key as name."""
     from hedge_fund.signals import ALPHA_MODEL_REGISTRY, LLMAgent
@@ -232,8 +252,19 @@ def test_llm_personas_share_the_contract(tmp_path):
 
 
 SCHOOLS = [
-    "akre", "chanos", "dalio_resilience", "damodaran", "dreman", "earnings_quality_skeptic",
-    "fisher", "fundsmith", "greenblatt", "klarman", "pabrai", "quality_compounder", "schloss",
+    "akre",
+    "chanos",
+    "dalio_resilience",
+    "damodaran",
+    "dreman",
+    "earnings_quality_skeptic",
+    "fisher",
+    "fundsmith",
+    "greenblatt",
+    "klarman",
+    "pabrai",
+    "quality_compounder",
+    "schloss",
 ]
 
 
@@ -257,6 +288,7 @@ def test_school_personas_keep_the_school_framing(tmp_path, slug):
 # ---------------------------------------------------------------------------
 # extract_json
 # ---------------------------------------------------------------------------
+
 
 def test_extract_json_fenced():
     assert extract_json('here:\n```json\n{"a": 1}\n```\ndone') == {"a": 1}

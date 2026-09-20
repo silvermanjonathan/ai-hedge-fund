@@ -36,12 +36,38 @@ def close(ticker, d):
 class FakeData:
     def get_prices(self, ticker, start_date, end_date, **kw):
         s, e = date.fromisoformat(start_date), date.fromisoformat(end_date)
-        return [Price(open=close(ticker, d), close=close(ticker, d), high=1, low=1, volume=1, time=f"{d.isoformat()}T00:00:00Z") for i, d in TRADING if s <= d <= e]
+        return [
+            Price(
+                open=close(ticker, d),
+                close=close(ticker, d),
+                high=1,
+                low=1,
+                volume=1,
+                time=f"{d.isoformat()}T00:00:00Z",
+            )
+            for i, d in TRADING
+            if s <= d <= e
+        ]
 
 
 def _row(school, ticker, signal, conf, event_idx, desk="d/p", key=None):
     d = TRADING[event_idx][1]
-    return {"key": key or f"{school}|{ticker}|{event_idx}", "school": school, "ticker": ticker, "snapshot_hash": str(event_idx), "filing_date": None, "signal": signal, "confidence": conf, "value": 0.0, "desk": desk, "event_date": d.isoformat(), "logged_at": "t", "entry_close": close(ticker, d), "spy_close": close("SPY", d), "thesis": None}
+    return {
+        "key": key or f"{school}|{ticker}|{event_idx}",
+        "school": school,
+        "ticker": ticker,
+        "snapshot_hash": str(event_idx),
+        "filing_date": None,
+        "signal": signal,
+        "confidence": conf,
+        "value": 0.0,
+        "desk": desk,
+        "event_date": d.isoformat(),
+        "logged_at": "t",
+        "entry_close": close(ticker, d),
+        "spy_close": close("SPY", d),
+        "thesis": None,
+    }
 
 
 def _ledger(tmp_path, rows):
@@ -59,10 +85,19 @@ def _find(card, school, h):
 
 
 def test_bullish_and_bearish_signed_returns(tmp_path):
-    rows = [_row("a", "UP", "bullish", 80, 0), _row("a", "DOWN", "bearish", 60, 0), _row("b", "UP", "bearish", 70, 0), _row("b", "DOWN", "bullish", 70, 0)]
+    rows = [
+        _row("a", "UP", "bullish", 80, 0),
+        _row("a", "DOWN", "bearish", 60, 0),
+        _row("b", "UP", "bearish", 70, 0),
+        _row("b", "DOWN", "bullish", 70, 0),
+    ]
     card = scorecard(_ledger(tmp_path, rows), FakeData(), _today(40), horizons=(21,), min_calls=1)
     a, b = _find(card, "a", 21), _find(card, "b", 21)
-    assert a.n == 2 and a.hit_rate == 1.0 and a.mean_signed == pytest.approx((1.01**21 - 1 + (1 - 0.99**21)) / 2, rel=1e-6)
+    assert (
+        a.n == 2
+        and a.hit_rate == 1.0
+        and a.mean_signed == pytest.approx((1.01**21 - 1 + (1 - 0.99**21)) / 2, rel=1e-6)
+    )
     assert b.n == 2 and b.hit_rate == 0.0 and b.mean_signed < 0
     assert a.conf_weighted_mean == pytest.approx((0.8 * (1.01**21 - 1) + 0.6 * (1 - 0.99**21)) / 1.4, rel=1e-6)
     assert a.stderr is not None and a.median_signed is not None
@@ -110,7 +145,9 @@ def test_universe_relative_mean(tmp_path):
 
 
 def test_render_and_json(tmp_path):
-    card = scorecard(_ledger(tmp_path, [_row("a", "UP", "bullish", 80, 0)]), FakeData(), _today(40), horizons=(21,), min_calls=20)
+    card = scorecard(
+        _ledger(tmp_path, [_row("a", "UP", "bullish", 80, 0)]), FakeData(), _today(40), horizons=(21,), min_calls=20
+    )
     text = card.render()
     assert "provisional" in text and "a " in text
     assert json.loads(card.to_json())["rows"][0]["status"] == "provisional"

@@ -3,6 +3,6 @@
 Later: mean-variance optimization, Black-Litterman, risk parity.
 """
 
-from hedge_fund.portfolio.construction import BlendResult, blend_signals
+from hedge_fund.portfolio.construction import blend_signals, BlendResult
 
 __all__ = ["BlendResult", "blend_signals"]

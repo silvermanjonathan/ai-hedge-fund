@@ -59,17 +59,37 @@ class Scorecard:
 
     def render(self) -> str:
         head = f"{'school':26}| {'h':>4} | {'n':>4} | {'hit':>6} | {'mean vs SPY':>18} | {'vs universe':>12} | {'neutral':>8} | status"
-        lines = [f"Scorecard as of {self.today} (min_calls={self.min_calls}; excess over SPY, signed by the call)", head, "-" * len(head)]
+        lines = [
+            f"Scorecard as of {self.today} (min_calls={self.min_calls}; excess over SPY, signed by the call)",
+            head,
+            "-" * len(head),
+        ]
         for r in self.rows:
-            mean = "-" if r.mean_signed is None else f"{r.mean_signed:+.2%}" + ("" if r.stderr is None else f" ± {r.stderr:.2%}")
-            lines.append(f"{r.school:26}| {r.horizon:>4} | {r.n:>4} | {_pct(r.hit_rate):>6} | {mean:>18} | {_pct(r.mean_vs_universe, signed=True):>12} | {_pct(r.neutral_share):>8} | {r.status}")
+            mean = (
+                "-"
+                if r.mean_signed is None
+                else f"{r.mean_signed:+.2%}" + ("" if r.stderr is None else f" ± {r.stderr:.2%}")
+            )
+            lines.append(
+                f"{r.school:26}| {r.horizon:>4} | {r.n:>4} | {_pct(r.hit_rate):>6} | {mean:>18} | {_pct(r.mean_vs_universe, signed=True):>12} | {_pct(r.neutral_share):>8} | {r.status}"
+            )
         return "\n".join(lines)
 
     def to_json(self) -> str:
-        return json.dumps({"today": self.today, "min_calls": self.min_calls, "horizons": list(self.horizons), "rows": [asdict(r) for r in self.rows]}, indent=2)
+        return json.dumps(
+            {
+                "today": self.today,
+                "min_calls": self.min_calls,
+                "horizons": list(self.horizons),
+                "rows": [asdict(r) for r in self.rows],
+            },
+            indent=2,
+        )
 
 
-def scorecard(ledger: Ledger, data_client: DataClient, today: str, horizons: tuple[int, ...] = HORIZONS, min_calls: int = 20) -> Scorecard:
+def scorecard(
+    ledger: Ledger, data_client: DataClient, today: str, horizons: tuple[int, ...] = HORIZONS, min_calls: int = 20
+) -> Scorecard:
     rows = ledger.rows()
     schools = sorted({r["school"] for r in rows})
     neutral_share = {s: _share([r for r in rows if r["school"] == s]) for s in schools}
@@ -113,7 +133,9 @@ def scorecard(ledger: Ledger, data_client: DataClient, today: str, horizons: tup
                 groups[(r["school"], r["desk"], r["event_date"], h)].append(raw[(r["key"], h)])
     universe_mean = {g: sum(v) / len(v) for g, v in groups.items()}
 
-    stats: dict[tuple[str, int], list[tuple[float, float, float]]] = defaultdict(list)  # (signed_vs_spy, conf, signed_vs_universe)
+    stats: dict[tuple[str, int], list[tuple[float, float, float]]] = defaultdict(
+        list
+    )  # (signed_vs_spy, conf, signed_vs_universe)
     for r in rows:
         if r["signal"] not in ("bullish", "bearish"):
             continue
@@ -123,13 +145,23 @@ def scorecard(ledger: Ledger, data_client: DataClient, today: str, horizons: tup
                 continue
             excess = raw[(r["key"], h)] - spy[(r["event_date"], h)]
             vs_universe = raw[(r["key"], h)] - universe_mean[(r["school"], r["desk"], r["event_date"], h)]
-            stats[(r["school"], h)].append((direction * excess, (r.get("confidence") or 0.0) / 100.0, direction * vs_universe))
+            stats[(r["school"], h)].append(
+                (direction * excess, (r.get("confidence") or 0.0) / 100.0, direction * vs_universe)
+            )
 
     def summary(school: str, h: int) -> dict:
         xs = stats.get((school, h), [])
         n = len(xs)
         if n == 0:
-            return {"n": 0, "hit_rate": None, "mean_signed": None, "median_signed": None, "conf_weighted_mean": None, "stderr": None, "mean_vs_universe": None}
+            return {
+                "n": 0,
+                "hit_rate": None,
+                "mean_signed": None,
+                "median_signed": None,
+                "conf_weighted_mean": None,
+                "stderr": None,
+                "mean_vs_universe": None,
+            }
         signed = [x[0] for x in xs]
         weights = [x[1] for x in xs]
         return {
@@ -137,7 +169,9 @@ def scorecard(ledger: Ledger, data_client: DataClient, today: str, horizons: tup
             "hit_rate": sum(1 for v in signed if v > 0) / n,
             "mean_signed": sum(signed) / n,
             "median_signed": statistics.median(signed),
-            "conf_weighted_mean": (sum(v * w for v, w in zip(signed, weights)) / sum(weights)) if sum(weights) > 0 else None,
+            "conf_weighted_mean": (sum(v * w for v, w in zip(signed, weights)) / sum(weights))
+            if sum(weights) > 0
+            else None,
             "stderr": (statistics.stdev(signed) / math.sqrt(n)) if n >= 2 else None,
             "mean_vs_universe": sum(x[2] for x in xs) / n,
         }

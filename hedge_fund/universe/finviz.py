@@ -132,7 +132,9 @@ def token(explicit: str | None = None) -> str:
     """The Elite token, or a failure naming the variable to set."""
     value = (explicit or os.environ.get(FINVIZ_TOKEN_ENV, "")).strip()
     if not value:
-        raise FinvizError(f"{FINVIZ_TOKEN_ENV} is not set. It is the auth= value Finviz Elite appends to Screener export URLs; export it or add it to ~/.hedge-fund/.env.")
+        raise FinvizError(
+            f"{FINVIZ_TOKEN_ENV} is not set. It is the auth= value Finviz Elite appends to Screener export URLs; export it or add it to ~/.hedge-fund/.env."
+        )
     return value
 
 
@@ -159,7 +161,9 @@ def parse(text: str) -> list[str]:
         raise FinvizError("empty response, likely throttled")
     reader = csv.DictReader(io.StringIO(text))
     if not reader.fieldnames or "Ticker" not in reader.fieldnames:
-        raise FinvizError(f"export has no Ticker column (header: {reader.fieldnames}); a login page or a changed column id")
+        raise FinvizError(
+            f"export has no Ticker column (header: {reader.fieldnames}); a login page or a changed column id"
+        )
     return [row["Ticker"].strip().upper() for row in reader if (row.get("Ticker") or "").strip()]
 
 
@@ -194,7 +198,10 @@ def fetch(
     if tickers is None:
         resp = download(filters, auth=token(auth), session=session)
         if resp.status_code != 200:
-            raise FinvizError(f"Finviz export returned {resp.status_code} for {preset or 'custom filters'}", status_code=resp.status_code)
+            raise FinvizError(
+                f"Finviz export returned {resp.status_code} for {preset or 'custom filters'}",
+                status_code=resp.status_code,
+            )
         tickers = parse(resp.text)
         _write(path, resp.text)
         logger.info("finviz %s: %d tickers (%s)", preset or "custom", len(tickers), filters)

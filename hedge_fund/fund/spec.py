@@ -43,9 +43,7 @@ class ModelSpec(BaseModel):
 
     name: str = Field(description="key into ALPHA_MODEL_REGISTRY, e.g. 'buffett'")
     weight: float = Field(default=1.0, gt=0, description="blend weight")
-    params: dict[str, Any] = Field(
-        default_factory=dict, description="constructor kwargs for the model"
-    )
+    params: dict[str, Any] = Field(default_factory=dict, description="constructor kwargs for the model")
 
 
 class BlendPolicy(BaseModel):
@@ -54,9 +52,7 @@ class BlendPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     method: Literal["conviction_weighted"] = "conviction_weighted"
-    gross_target: float = Field(
-        default=1.0, gt=0, description="desired sum of |weights| when views exist"
-    )
+    gross_target: float = Field(default=1.0, gt=0, description="desired sum of |weights| when views exist")
     market_neutral: bool = Field(
         default=False,
         description="demean convictions cross-sectionally before scaling: long "
@@ -77,9 +73,7 @@ class StrategySpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str
-    display_name: str | None = Field(
-        default=None, description="human-facing name, e.g. 'Deep Value'"
-    )
+    display_name: str | None = Field(default=None, description="human-facing name, e.g. 'Deep Value'")
     weight: float = Field(default=1.0, gt=0)
     models: list[ModelSpec] = Field(min_length=1)
     blend: BlendPolicy = Field(default_factory=BlendPolicy)
@@ -121,8 +115,7 @@ class FundSpec(BaseModel):
     )
     benchmark: str = Field(
         default="SPY",
-        description="what the fund measures itself against; also the source "
-        "of the backtest's trading-day grid",
+        description="what the fund measures itself against; also the source " "of the backtest's trading-day grid",
     )
 
     @field_validator("benchmark")

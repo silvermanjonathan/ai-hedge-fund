@@ -22,10 +22,10 @@ from collections.abc import Callable
 from typing import Protocol, runtime_checkable
 
 from hedge_fund.llm.registry import (
-    SUPPORTED_PROVIDERS,
     env_var_for,
     is_supported,
     provider_for,
+    SUPPORTED_PROVIDERS,
 )
 
 DEFAULT_MODEL = "claude-fable-5-1"
@@ -56,7 +56,8 @@ class LLMClient(Protocol):
 
     model: str
 
-    def complete(self, system: str, user: str) -> str: ...
+    def complete(self, system: str, user: str) -> str:
+        ...
 
 
 class ChatLLM:
@@ -120,40 +121,46 @@ def make_llm(
         provider = "Anthropic"
     if not is_supported(provider):
         raise ValueError(
-            f"No v2 client for {provider} (model {model}). "
-            f"Supported: {', '.join(sorted(SUPPORTED_PROVIDERS))}."
+            f"No v2 client for {provider} (model {model}). " f"Supported: {', '.join(sorted(SUPPORTED_PROVIDERS))}."
         )
 
     api_key = _require_key(provider)
 
     if provider == "Anthropic":
         from hedge_fund.llm.anthropic_client import AnthropicLLM
+
         effort = effort or os.environ.get("HEDGE_FUND_LLM_EFFORT") or DEFAULT_EFFORT
         return AnthropicLLM(model, api_key=api_key, on_token=on_token, effort=effort)
     elif provider == "OpenAI":
         from langchain_openai import ChatOpenAI
-        chat = ChatOpenAI(model=model, api_key=api_key, timeout=timeout,
-                          max_retries=1, base_url=os.getenv("OPENAI_API_BASE"))
+
+        chat = ChatOpenAI(
+            model=model, api_key=api_key, timeout=timeout, max_retries=1, base_url=os.getenv("OPENAI_API_BASE")
+        )
     elif provider == "DeepSeek":
         from langchain_deepseek import ChatDeepSeek
-        chat = ChatDeepSeek(model=model, api_key=api_key, timeout=timeout,
-                            max_retries=1)
+
+        chat = ChatDeepSeek(model=model, api_key=api_key, timeout=timeout, max_retries=1)
     elif provider == "Google":
         from langchain_google_genai import ChatGoogleGenerativeAI
-        chat = ChatGoogleGenerativeAI(model=model, api_key=api_key,
-                                      timeout=timeout, max_retries=1)
+
+        chat = ChatGoogleGenerativeAI(model=model, api_key=api_key, timeout=timeout, max_retries=1)
     elif provider == "xAI":
         from langchain_xai import ChatXAI
-        chat = ChatXAI(model=model, api_key=api_key, timeout=timeout,
-                       max_retries=1)
+
+        chat = ChatXAI(model=model, api_key=api_key, timeout=timeout, max_retries=1)
     elif provider == "Kimi":
         # Moonshot speaks the OpenAI wire format. Default to the international
         # host; mainland users override with MOONSHOT_BASE_URL (v1 does the same).
         from langchain_openai import ChatOpenAI
+
         chat = ChatOpenAI(
-            model=model, api_key=api_key, timeout=timeout, max_retries=1,
-            base_url=(os.getenv("MOONSHOT_BASE_URL")
-                      or "https://api.moonshot.ai/v1"))
+            model=model,
+            api_key=api_key,
+            timeout=timeout,
+            max_retries=1,
+            base_url=(os.getenv("MOONSHOT_BASE_URL") or "https://api.moonshot.ai/v1"),
+        )
     else:  # pragma: no cover - SUPPORTED_PROVIDERS is checked above
         raise ValueError(f"Unhandled provider {provider}")
 
@@ -189,12 +196,10 @@ def _require_key(provider: str) -> str:
     """The provider's API key, or a failure that names the variable to set."""
     env_var = env_var_for(provider)
     # Kimi accepts either name; v1 reads MOONSHOT_API_KEY first.
-    key = (os.getenv("MOONSHOT_API_KEY") if provider == "Kimi" else None)
+    key = os.getenv("MOONSHOT_API_KEY") if provider == "Kimi" else None
     key = key or (os.getenv(env_var) if env_var else None)
     if not key:
-        raise ValueError(
-            f"{env_var} not found. Set it in your .env to use {provider} models."
-        )
+        raise ValueError(f"{env_var} not found. Set it in your .env to use {provider} models.")
     return key
 
 

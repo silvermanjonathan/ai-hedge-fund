@@ -54,56 +54,70 @@ class CachedDataClient:
 
     def get_prices(self, ticker, start_date, end_date, interval="day", interval_multiplier=1):
         return self._cached_list(
-            "get_prices", Price,
-            {"ticker": ticker, "start_date": start_date, "end_date": end_date,
-             "interval": interval, "interval_multiplier": interval_multiplier},
-            lambda: self._client.get_prices(
-                ticker, start_date, end_date, interval, interval_multiplier),
+            "get_prices",
+            Price,
+            {
+                "ticker": ticker,
+                "start_date": start_date,
+                "end_date": end_date,
+                "interval": interval,
+                "interval_multiplier": interval_multiplier,
+            },
+            lambda: self._client.get_prices(ticker, start_date, end_date, interval, interval_multiplier),
         )
 
     def get_financial_metrics(self, ticker, end_date, period="ttm", limit=10):
         return self._cached_list(
-            "get_financial_metrics", FinancialMetrics,
+            "get_financial_metrics",
+            FinancialMetrics,
             {"ticker": ticker, "end_date": end_date, "period": period, "limit": limit},
             lambda: self._client.get_financial_metrics(ticker, end_date, period, limit),
         )
 
     def get_news(self, ticker, end_date, start_date=None, limit=1000):
         return self._cached_list(
-            "get_news", CompanyNews,
+            "get_news",
+            CompanyNews,
             {"ticker": ticker, "end_date": end_date, "start_date": start_date, "limit": limit},
             lambda: self._client.get_news(ticker, end_date, start_date, limit),
         )
 
     def get_insider_trades(self, ticker, end_date, start_date=None, limit=1000):
         return self._cached_list(
-            "get_insider_trades", InsiderTrade,
+            "get_insider_trades",
+            InsiderTrade,
             {"ticker": ticker, "end_date": end_date, "start_date": start_date, "limit": limit},
             lambda: self._client.get_insider_trades(ticker, end_date, start_date, limit),
         )
 
     def get_earnings_history(self, ticker, limit=12):
         return self._cached_list(
-            "get_earnings_history", EarningsRecord,
+            "get_earnings_history",
+            EarningsRecord,
             {"ticker": ticker, "limit": limit},
             lambda: self._client.get_earnings_history(ticker, limit),
         )
 
     def get_company_facts(self, ticker):
         return self._cached_item(
-            "get_company_facts", CompanyFacts, {"ticker": ticker},
+            "get_company_facts",
+            CompanyFacts,
+            {"ticker": ticker},
             lambda: self._client.get_company_facts(ticker),
         )
 
     def get_earnings(self, ticker):
         return self._cached_item(
-            "get_earnings", Earnings, {"ticker": ticker},
+            "get_earnings",
+            Earnings,
+            {"ticker": ticker},
             lambda: self._client.get_earnings(ticker),
         )
 
     def get_market_cap(self, ticker, end_date):
         return self._cached_scalar(
-            "get_market_cap", {"ticker": ticker, "end_date": end_date},
+            "get_market_cap",
+            {"ticker": ticker, "end_date": end_date},
             lambda: self._client.get_market_cap(ticker, end_date),
         )
 

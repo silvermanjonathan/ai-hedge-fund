@@ -10,31 +10,119 @@ import sys
 import time
 from datetime import date
 
-from hedge_fund.data import make_data_client, unsupported_model_names
 from hedge_fund.backtesting import BacktestEngine
+from hedge_fund.data import make_data_client, unsupported_model_names
 from hedge_fund.signals import PEADModel
 
 TICKERS = [
     # Tech (21)
-    "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "NFLX", "CRM", "ADBE",
-    "ORCL", "INTC", "AMD", "CSCO", "IBM", "UBER", "SHOP", "SNOW", "PLTR", "PANW", "CRWD",
+    "AAPL",
+    "MSFT",
+    "AMZN",
+    "GOOGL",
+    "META",
+    "NVDA",
+    "TSLA",
+    "NFLX",
+    "CRM",
+    "ADBE",
+    "ORCL",
+    "INTC",
+    "AMD",
+    "CSCO",
+    "IBM",
+    "UBER",
+    "SHOP",
+    "SNOW",
+    "PLTR",
+    "PANW",
+    "CRWD",
     # Financials (15)
-    "JPM", "GS", "BAC", "WFC", "MS", "C", "BLK", "SCHW", "AXP", "COF",
-    "USB", "PNC", "TFC", "BK", "CME",
+    "JPM",
+    "GS",
+    "BAC",
+    "WFC",
+    "MS",
+    "C",
+    "BLK",
+    "SCHW",
+    "AXP",
+    "COF",
+    "USB",
+    "PNC",
+    "TFC",
+    "BK",
+    "CME",
     # Healthcare (15)
-    "JNJ", "PFE", "UNH", "MRK", "LLY", "ABBV", "TMO", "ABT", "BMY", "AMGN",
-    "GILD", "ISRG", "VRTX", "REGN", "MDT",
+    "JNJ",
+    "PFE",
+    "UNH",
+    "MRK",
+    "LLY",
+    "ABBV",
+    "TMO",
+    "ABT",
+    "BMY",
+    "AMGN",
+    "GILD",
+    "ISRG",
+    "VRTX",
+    "REGN",
+    "MDT",
     # Energy (7)
-    "XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX",
+    "XOM",
+    "CVX",
+    "COP",
+    "SLB",
+    "EOG",
+    "MPC",
+    "PSX",
     # Consumer / Retail (15)
-    "HD", "LOW", "COST", "WMT", "KO", "PEP", "MCD", "SBUX", "NKE", "TGT",
-    "TJX", "ROST", "DG", "DLTR", "YUM",
+    "HD",
+    "LOW",
+    "COST",
+    "WMT",
+    "KO",
+    "PEP",
+    "MCD",
+    "SBUX",
+    "NKE",
+    "TGT",
+    "TJX",
+    "ROST",
+    "DG",
+    "DLTR",
+    "YUM",
     # Industrials (10)
-    "CAT", "DE", "HON", "UPS", "RTX", "BA", "LMT", "GE", "MMM", "UNP",
+    "CAT",
+    "DE",
+    "HON",
+    "UPS",
+    "RTX",
+    "BA",
+    "LMT",
+    "GE",
+    "MMM",
+    "UNP",
     # Media / Telecom (7)
-    "DIS", "CMCSA", "T", "VZ", "TMUS", "CHTR", "WBD",
+    "DIS",
+    "CMCSA",
+    "T",
+    "VZ",
+    "TMUS",
+    "CHTR",
+    "WBD",
     # Other (10)
-    "V", "MA", "PYPL", "NEE", "D", "SO", "DUK", "ABNB", "COIN", "NOW",
+    "V",
+    "MA",
+    "PYPL",
+    "NEE",
+    "D",
+    "SO",
+    "DUK",
+    "ABNB",
+    "COIN",
+    "NOW",
 ]
 
 HOLDING_DAYS = 5
@@ -123,6 +211,7 @@ def print_trade_row(t):
 
 def main() -> None:
     import logging
+
     logging.getLogger("hedge_fund.data.client").setLevel(logging.ERROR)
 
     n = len(TICKERS)
@@ -145,7 +234,12 @@ def main() -> None:
             sys.stdout.write(f"\r  Backtesting PEAD alpha... [{i + 1}/{n}] {ticker:<6}")
             sys.stdout.flush()
             r = engine.run_alpha(
-                model, [ticker], fd, START_DATE, END_DATE, holding_days=HOLDING_DAYS,
+                model,
+                [ticker],
+                fd,
+                START_DATE,
+                END_DATE,
+                holding_days=HOLDING_DAYS,
             )
             trades.extend(r.trades)
 
@@ -192,5 +286,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     from hedge_fund.tui.keys import apply_credentials
+
     apply_credentials()
     main()

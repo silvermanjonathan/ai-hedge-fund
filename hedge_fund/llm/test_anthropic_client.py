@@ -27,7 +27,10 @@ def _usage():
 
 def _message(text, stop_reason="end_turn", stop_details=None):
     return SimpleNamespace(
-        content=[SimpleNamespace(type="thinking", thinking="weighing margins"), SimpleNamespace(type="text", text=text)],
+        content=[
+            SimpleNamespace(type="thinking", thinking="weighing margins"),
+            SimpleNamespace(type="text", text=text),
+        ],
         stop_reason=stop_reason,
         stop_details=stop_details,
         usage=_usage(),
@@ -112,7 +115,11 @@ def test_request_carries_cache_breakpoint_schema_effort_and_no_budget():
 
 
 def test_stream_feeds_only_text_to_the_listener_and_returns_the_joined_json():
-    events = [_delta("thinking_delta", "let me weigh the moat"), _delta("text_delta", '{"signal": "bullish", '), _delta("text_delta", '"confidence": 80, "reasoning": "Wonderful business."}')]
+    events = [
+        _delta("thinking_delta", "let me weigh the moat"),
+        _delta("text_delta", '{"signal": "bullish", '),
+        _delta("text_delta", '"confidence": 80, "reasoning": "Wonderful business."}'),
+    ]
     messages = FakeMessages(events=events)
     seen: list[str] = []
 

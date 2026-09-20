@@ -105,11 +105,9 @@ def bootstrap_ci(
     """
     rng = np.random.default_rng(rng_seed)
     n = len(cars)
-    boot_means = np.array([
-        rng.choice(cars, size=n, replace=True).mean() for _ in range(n_bootstrap)
-    ])
-    lower_pct = (1 - confidence) / 2 * 100   # 2.5 for 95% CI
-    upper_pct = (1 + confidence) / 2 * 100   # 97.5 for 95% CI
+    boot_means = np.array([rng.choice(cars, size=n, replace=True).mean() for _ in range(n_bootstrap)])
+    lower_pct = (1 - confidence) / 2 * 100  # 2.5 for 95% CI
+    upper_pct = (1 + confidence) / 2 * 100  # 97.5 for 95% CI
     lower, upper = np.percentile(boot_means, [lower_pct, upper_pct])
     return BootstrapCI(
         lower=float(lower),

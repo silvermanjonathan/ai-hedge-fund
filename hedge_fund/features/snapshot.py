@@ -128,23 +128,20 @@ def build_snapshot(
     silently become a neutral view.
     """
     metrics = data_client.get_financial_metrics(
-        ticker, as_of, period="ttm", limit=periods,
+        ticker,
+        as_of,
+        period="ttm",
+        limit=periods,
     )
     if len(metrics) < MIN_PERIODS:
-        raise InsufficientData(
-            f"{ticker} as of {as_of}: only {len(metrics)} filed periods "
-            f"(need {MIN_PERIODS})"
-        )
+        raise InsufficientData(f"{ticker} as of {as_of}: only {len(metrics)} filed periods " f"(need {MIN_PERIODS})")
 
     # Market cap comes from the most recent FILED metrics row. Deliberately
     # NOT data_client.get_market_cap(): that prefers company_facts.market_cap,
     # which is latest-only — lookahead in a backtest.
     facts = data_client.get_company_facts(ticker)
 
-    rows = [
-        PeriodFundamentals(**m.model_dump(include=set(PeriodFundamentals.model_fields)))
-        for m in metrics
-    ]
+    rows = [PeriodFundamentals(**m.model_dump(include=set(PeriodFundamentals.model_fields))) for m in metrics]
 
     return FundamentalsSnapshot(
         ticker=ticker,
@@ -166,6 +163,7 @@ def build_snapshot(
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
 
 def _fmt(v: float | None) -> str:
     if v is None:

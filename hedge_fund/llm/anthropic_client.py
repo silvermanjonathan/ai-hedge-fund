@@ -145,7 +145,9 @@ class AnthropicLLM:
         is hitting (cache_read_input_tokens > 0) and what a decision cost."""
         usage = message.usage
         logger.info(
-            "anthropic model=%s effort=%s stop_reason=%s input_tokens=%s " "output_tokens=%s cache_creation_input_tokens=%s " "cache_read_input_tokens=%s",
+            "anthropic model=%s effort=%s stop_reason=%s input_tokens=%s "
+            "output_tokens=%s cache_creation_input_tokens=%s "
+            "cache_read_input_tokens=%s",
             self.model,
             self._effort,
             message.stop_reason,

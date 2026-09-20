@@ -10,7 +10,13 @@ from __future__ import annotations
 
 import pytest
 
-from hedge_fund.llm import ChatLLM, SUPPORTED_PROVIDERS, load_api_models, make_llm, provider_for
+from hedge_fund.llm import (
+    ChatLLM,
+    load_api_models,
+    make_llm,
+    provider_for,
+    SUPPORTED_PROVIDERS,
+)
 from hedge_fund.llm.client import _flatten
 from hedge_fund.llm.registry import PROVIDER_ENV_VARS
 
@@ -94,8 +100,7 @@ class FakeChat:
 
     def invoke(self, messages):
         self.invoked = True
-        return FakeChunk("".join(
-            c.content if isinstance(c.content, str) else "" for c in self._chunks))
+        return FakeChunk("".join(c.content if isinstance(c.content, str) else "" for c in self._chunks))
 
     def stream(self, messages):
         self.streamed = True
@@ -123,15 +128,16 @@ class TestStreaming:
     def test_chunk_blocks_join_without_a_separator(self):
         """Whole-message blocks join on a newline; stream blocks are fragments
         of one continuing string, and a newline would land mid-word."""
-        chat = FakeChat([FakeChunk([{"type": "text", "text": "mo"},
-                                    {"type": "text", "text": "at"}])])
+        chat = FakeChat([FakeChunk([{"type": "text", "text": "mo"}, {"type": "text", "text": "at"}])])
         assert ChatLLM("m", chat, lambda _: None).complete("s", "u") == "moat"
 
     def test_thinking_chunks_reach_neither_the_listener_nor_the_result(self):
-        chat = FakeChat([
-            FakeChunk([{"type": "thinking", "thinking": "weighing margins"}]),
-            FakeChunk([{"type": "text", "text": "verdict"}]),
-        ])
+        chat = FakeChat(
+            [
+                FakeChunk([{"type": "thinking", "thinking": "weighing margins"}]),
+                FakeChunk([{"type": "text", "text": "verdict"}]),
+            ]
+        )
         seen: list[str] = []
         assert ChatLLM("m", chat, seen.append).complete("s", "u") == "verdict"
         assert seen == ["verdict"]
@@ -139,6 +145,7 @@ class TestStreaming:
     def test_make_llm_passes_the_listener_through(self, keyed):
         """The TUI builds its agents with make_llm(on_token=...), so the
         listener has to survive the factory."""
+
         def listener(text: str) -> None:
             pass
 
@@ -152,7 +159,7 @@ class TestFlatten:
         assert _flatten('{"signal": "bullish"}') == '{"signal": "bullish"}'
 
     def test_text_blocks_are_joined(self):
-        blocks = [{"type": "text", "text": '{"a":'}, {"type": "text", "text": ' 1}'}]
+        blocks = [{"type": "text", "text": '{"a":'}, {"type": "text", "text": " 1}"}]
         assert _flatten(blocks) == '{"a":\n 1}'
 
     def test_thinking_blocks_are_dropped(self):

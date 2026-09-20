@@ -18,7 +18,10 @@ from rich.text import Text
 
 from hedge_fund.fund import FundSpec, StrategySpec
 from hedge_fund.llm import is_supported, load_api_models  # noqa: F401  (re-export)
-from hedge_fund.paths import MANDATES_DIR, ensure_mandates_dir  # noqa: F401  (re-export)
+from hedge_fund.paths import (  # noqa: F401  (re-export)
+    ensure_mandates_dir,
+    MANDATES_DIR,
+)
 from hedge_fund.signals import ALPHA_MODEL_REGISTRY, LLMAgent
 
 try:
@@ -31,8 +34,7 @@ except PackageNotFoundError:  # running from source without an install
 STRATEGY_DIR = Path(__file__).resolve().parent.parent / "strategies"
 FUNDS_DIR = MANDATES_DIR
 
-UNIVERSE_PRESETS = ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN",
-                    "META", "TSLA", "JPM", "UNH", "XOM"]
+UNIVERSE_PRESETS = ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA", "JPM", "UNH", "XOM"]
 
 DISPLAY_NAMES = {
     "buffett": "Warren Buffett",
@@ -91,9 +93,9 @@ _DEFAULT_MODEL_LABEL = "Fable 5.1"
 DEFAULT_RISK = {"max_position_pct": 0.25, "max_gross_exposure": 1.0}
 DEFAULT_CAPITAL = 100_000.0
 _BACKTEST_WEEKS = 78  # ~18 months of history for the default backtest window
-_CYCLE_DWELL = 0.08   # min seconds per backtest tick, so the curve draws visibly
+_CYCLE_DWELL = 0.08  # min seconds per backtest tick, so the curve draws visibly
 _BOARD_REFRESH = 1 / 12  # seconds between run-board repaints — smooth, not frantic
-_WARM_CHUNK = 10      # dates per warm task — small enough that one stock still fans out
+_WARM_CHUNK = 10  # dates per warm task — small enough that one stock still fans out
 
 _CHART_HEIGHT = 8
 
@@ -127,8 +129,7 @@ def _agent_names(spec: FundSpec) -> list[str]:
 def _strategy_kind(strategy: StrategySpec) -> str:
     """Discretionary pods are staffed entirely by LLM agents; anything with a
     quant model in the mix is systematic. Derived, never declared."""
-    if all(issubclass(ALPHA_MODEL_REGISTRY[m.name], LLMAgent)
-           for m in strategy.models):
+    if all(issubclass(ALPHA_MODEL_REGISTRY[m.name], LLMAgent) for m in strategy.models):
         return "discretionary"
     return "systematic"
 
@@ -182,10 +183,8 @@ def _render_chart(
             else:
                 # Rising: turn up (╯) at the low level, arrive (╭) at the high.
                 # Falling: turn down (╮) at the high, arrive (╰) at the low.
-                grid[_CHART_HEIGHT - 1 - y0][x] = (
-                    "╯" if y1 > y0 else "╮", style_of(cols[x]))
-                grid[_CHART_HEIGHT - 1 - y1][x] = (
-                    "╭" if y1 > y0 else "╰", style_of(cols[x]))
+                grid[_CHART_HEIGHT - 1 - y0][x] = ("╯" if y1 > y0 else "╮", style_of(cols[x]))
+                grid[_CHART_HEIGHT - 1 - y1][x] = ("╭" if y1 > y0 else "╰", style_of(cols[x]))
                 for y in range(min(y0, y1) + 1, max(y0, y1)):
                     grid[_CHART_HEIGHT - 1 - y][x] = ("│", style_of(cols[x]))
         grid[_CHART_HEIGHT - 1 - level[-1]][-1] = ("─", style_of(cols[-1]))

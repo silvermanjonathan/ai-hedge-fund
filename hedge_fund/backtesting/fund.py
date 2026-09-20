@@ -44,7 +44,7 @@ class FundBacktestMetrics(BaseModel):
     sharpe_ratio: float
     max_drawdown_pct: float
     benchmark_return_pct: float
-    excess_return_pct: float          # fund total minus benchmark total
+    excess_return_pct: float  # fund total minus benchmark total
     n_cycles: int
     n_orders: int
 
@@ -55,15 +55,15 @@ class FundBacktestResult(BaseModel):
     `model_dump_json()` round-trips; this is the receipts file."""
 
     fund: str
-    start: str                        # first grid date actually traded
-    end: str                          # last grid date actually traded
+    start: str  # first grid date actually traded
+    end: str  # last grid date actually traded
     rebalance: str
     benchmark: str
-    universe: list[str]               # the tickers this backtest was run over
+    universe: list[str]  # the tickers this backtest was run over
     capital: float
     dates: list[str]
-    nav: list[float]                  # NAV after each cycle, one per date
-    benchmark_nav: list[float]        # benchmark scaled to the same capital
+    nav: list[float]  # NAV after each cycle, one per date
+    benchmark_nav: list[float]  # benchmark scaled to the same capital
     metrics: FundBacktestMetrics
     records: list[CycleRecord]
 
@@ -94,8 +94,7 @@ def backtest_fund(
     closes = {b.time[:10]: b.close for b in bars if start <= b.time[:10] <= end}
     if not closes:
         raise ValueError(
-            f"{spec.name}: no {spec.benchmark} bars in [{start}, {end}] — "
-            "cannot build the trading grid"
+            f"{spec.name}: no {spec.benchmark} bars in [{start}, {end}] — " "cannot build the trading grid"
         )
     grid = rebalance_grid(sorted(closes), spec.rebalance)
 
@@ -123,8 +122,7 @@ def backtest_fund(
         dates=grid,
         nav=nav,
         benchmark_nav=benchmark_nav,
-        metrics=_metrics(spec.capital, grid, nav, benchmark_nav,
-                         spec.rebalance, records),
+        metrics=_metrics(spec.capital, grid, nav, benchmark_nav, spec.rebalance, records),
         records=records,
     )
 
@@ -156,6 +154,7 @@ def rebalance_grid(days: list[str], cadence: str) -> list[str]:
 # Private helpers
 # ---------------------------------------------------------------------------
 
+
 def _metrics(
     capital: float,
     grid: list[str],
@@ -175,9 +174,7 @@ def _metrics(
     curve = np.array([capital] + nav)
     returns = curve[1:] / curve[:-1] - 1
     if len(returns) > 1 and float(returns.std(ddof=1)) > 0:
-        sharpe = float(returns.mean() / returns.std(ddof=1)) * np.sqrt(
-            _PERIODS_PER_YEAR[cadence]
-        )
+        sharpe = float(returns.mean() / returns.std(ddof=1)) * np.sqrt(_PERIODS_PER_YEAR[cadence])
     else:
         sharpe = 0.0
 

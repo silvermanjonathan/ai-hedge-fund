@@ -110,7 +110,12 @@ class EdgarClient:
     ) -> None:
         agent = (user_agent or os.environ.get(SEC_USER_AGENT_ENV, "")).strip()
         if not agent:
-            raise EdgarError(f"{SEC_USER_AGENT_ENV} is not set. The SEC requires every automated " f"client to identify itself with a contact, e.g. " f'{SEC_USER_AGENT_ENV}="Jane Doe jane@example.com" — export it or ' f"add it to ~/.hedge-fund/.env.")
+            raise EdgarError(
+                f"{SEC_USER_AGENT_ENV} is not set. The SEC requires every automated "
+                f"client to identify itself with a contact, e.g. "
+                f'{SEC_USER_AGENT_ENV}="Jane Doe jane@example.com" — export it or '
+                f"add it to ~/.hedge-fund/.env."
+            )
         if "@" not in agent:
             logger.warning("%s has no email address; the SEC asks for one: %r", SEC_USER_AGENT_ENV, agent)
         self.user_agent = agent
@@ -161,7 +166,9 @@ class EdgarClient:
 
     def submissions(self, cik: int) -> dict | None:
         """Filer profile: name, SIC code and description, exchanges, tickers."""
-        return self._cached(self._dir / "submissions" / f"CIK{cik:010d}.json", TTL_SUBMISSIONS, SUBMISSIONS_URL.format(cik=cik))
+        return self._cached(
+            self._dir / "submissions" / f"CIK{cik:010d}.json", TTL_SUBMISSIONS, SUBMISSIONS_URL.format(cik=cik)
+        )
 
     def predecessor_cik(self, cik: int) -> int | None:
         """The registrant this filer succeeded, or None.
@@ -236,7 +243,11 @@ class EdgarClient:
         if payload is None:
             raise EdgarError(f"{TICKERS_URL} returned 404", status_code=404, path=TICKERS_URL)
         # {"0": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."}, ...}
-        return {str(row["ticker"]).upper(): int(row["cik_str"]) for row in payload.values() if isinstance(row, dict) and "ticker" in row and "cik_str" in row}
+        return {
+            str(row["ticker"]).upper(): int(row["cik_str"])
+            for row in payload.values()
+            if isinstance(row, dict) and "ticker" in row and "cik_str" in row
+        }
 
     def _cached(self, path: Path, ttl: float, url: str) -> dict | None:
         """Memo → disk (within *ttl* of its mtime) → network. None for a 404,
@@ -286,7 +297,9 @@ class EdgarClient:
         try:
             return resp.json()
         except ValueError as exc:
-            raise EdgarError(f"GET {url} returned non-JSON: {resp.text[:200]}", status_code=resp.status_code, path=url) from exc
+            raise EdgarError(
+                f"GET {url} returned non-JSON: {resp.text[:200]}", status_code=resp.status_code, path=url
+            ) from exc
 
     def _get_text(self, url: str, params: dict | None = None, accept: str = "text/html, */*") -> str | None:
         """GET a document (a filing, a search feed) as text. None only for 404."""
@@ -307,7 +320,14 @@ class EdgarClient:
 
             if resp.status_code in (403, 429) or resp.status_code >= 500:
                 if delay is not None:
-                    logger.info("EDGAR returned %d for %s, retrying in %ds (attempt %d/%d)", resp.status_code, url, delay, attempt + 1, len(_RETRY_DELAYS))
+                    logger.info(
+                        "EDGAR returned %d for %s, retrying in %ds (attempt %d/%d)",
+                        resp.status_code,
+                        url,
+                        delay,
+                        attempt + 1,
+                        len(_RETRY_DELAYS),
+                    )
                     time.sleep(delay)
                     continue
                 hint = ""
@@ -320,7 +340,9 @@ class EdgarClient:
                 )
 
             if resp.status_code >= 400:
-                raise EdgarError(f"GET {url} returned {resp.status_code}: {resp.text[:200]}", status_code=resp.status_code, path=url)
+                raise EdgarError(
+                    f"GET {url} returned {resp.status_code}: {resp.text[:200]}", status_code=resp.status_code, path=url
+                )
 
             return resp
 
@@ -334,7 +356,9 @@ class EdgarClient:
 _SUCCESSION_FORMS = ("8-K12B", "8-K12G3")
 _CORPORATE_SUFFIX = r"(?:Corporation|Corp\.?|Incorporated|Inc\.?|Company|Co\.?|Limited|Ltd\.?|LLC|L\.L\.C\.|L\.P\.|LP|plc|PLC|N\.V\.|S\.A\.|Holdings|Group|Trust)"
 _LEGAL_NAME_RE = re.compile(r"((?:[A-Z][\w&.'\-]*\s+){0,6}" + _CORPORATE_SUFFIX + r")(?![\w.])")
-_SUCCESSOR_RE = re.compile(r"successor\s+(?:registrant|issuer)\s+(?:of|to)(?:\s+the)?\s+([A-Z][\w&.'\-]*(?:\s+[A-Z&][\w&.'\-]*)*)(?=[’']s\b|,|\.|\s+pursuant|\s+under|\s+common|\s+in\b|\s+for\b|\s*\()")
+_SUCCESSOR_RE = re.compile(
+    r"successor\s+(?:registrant|issuer)\s+(?:of|to)(?:\s+the)?\s+([A-Z][\w&.'\-]*(?:\s+[A-Z&][\w&.'\-]*)*)(?=[’']s\b|,|\.|\s+pursuant|\s+under|\s+common|\s+in\b|\s+for\b|\s*\()"
+)
 _NAME_WORDS = {"CORPORATION": "CORP", "INCORPORATED": "INC", "COMPANY": "CO", "LIMITED": "LTD", "THE": ""}
 
 
@@ -342,7 +366,14 @@ def successor_filing(submissions: dict) -> tuple[str, str] | None:
     """(accession, primary document) of the filer's earliest successor-issuer
     filing (Form 8-K12B / 8-K12G3), or None."""
     recent = submissions.get("filings", {}).get("recent", {})
-    rows = list(zip(recent.get("form", []), recent.get("filingDate", []), recent.get("accessionNumber", []), recent.get("primaryDocument", [])))
+    rows = list(
+        zip(
+            recent.get("form", []),
+            recent.get("filingDate", []),
+            recent.get("accessionNumber", []),
+            recent.get("primaryDocument", []),
+        )
+    )
     hits = sorted((r for r in rows if str(r[0]).startswith(_SUCCESSION_FORMS) and r[2] and r[3]), key=lambda r: r[1])
     return (hits[0][2], hits[0][3]) if hits else None
 
@@ -366,7 +397,9 @@ def predecessor_name(document_html: str) -> str | None:
         return None
     term = hit.group(1).strip()
     for quote_open, quote_close in (("“", "”"), ('"', '"')):
-        for m in re.finditer(re.escape(quote_open) + r"\s*" + re.escape(term) + r"\s*" + re.escape(quote_close) + r"\s*\)", text):
+        for m in re.finditer(
+            re.escape(quote_open) + r"\s*" + re.escape(term) + r"\s*" + re.escape(quote_close) + r"\s*\)", text
+        ):
             before = text[max(0, m.start() - 200) : m.start()]
             names = _LEGAL_NAME_RE.findall(before)
             if names:

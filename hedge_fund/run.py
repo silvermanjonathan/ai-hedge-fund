@@ -37,7 +37,12 @@ from rich.console import Console
 
 from hedge_fund.backtesting import backtest_fund
 from hedge_fund.brokers import SimBroker
-from hedge_fund.data import data_source, missing_data_key, open_data_client, unsupported_model_names
+from hedge_fund.data import (
+    data_source,
+    missing_data_key,
+    open_data_client,
+    unsupported_model_names,
+)
 from hedge_fund.fund import Fund, load_spec, normalize_universe
 from hedge_fund.paths import ensure_mandates_dir
 from hedge_fund.pipeline import run_cycle
@@ -54,10 +59,13 @@ def main() -> None:
         "interactive app. With a mandate YAML: run one cycle and print the "
         "record.",
     )
-    parser.add_argument("mandate", nargs="?",
-                        help="path to a fund spec YAML, e.g. "
-                        "~/.hedge-fund/mandates/example.yaml "
-                        "(omit to launch the interactive app)")
+    parser.add_argument(
+        "mandate",
+        nargs="?",
+        help="path to a fund spec YAML, e.g. "
+        "~/.hedge-fund/mandates/example.yaml "
+        "(omit to launch the interactive app)",
+    )
     parser.add_argument(
         "--tickers",
         help="what to trade this run, comma or space separated, e.g. "
@@ -67,18 +75,17 @@ def main() -> None:
     parser.add_argument(
         "--date",
         default=_date.today().isoformat(),
-        help="as-of date YYYY-MM-DD (default: today); models only see data "
-        "filed by this date",
+        help="as-of date YYYY-MM-DD (default: today); models only see data " "filed by this date",
     )
     parser.add_argument(
-        "--backtest", action="store_true",
+        "--backtest",
+        action="store_true",
         help="backtest the mandate instead of running one cycle: one run_cycle "
         "per rebalance date from --start to --date, full result JSON on stdout",
     )
     parser.add_argument(
         "--start",
-        help=f"backtest start date YYYY-MM-DD (default: {_BACKTEST_WEEKS} weeks "
-        "before --date)",
+        help=f"backtest start date YYYY-MM-DD (default: {_BACKTEST_WEEKS} weeks " "before --date)",
     )
     parser.add_argument(
         "--model",
@@ -156,9 +163,7 @@ def main() -> None:
     fund = Fund(spec)
 
     if args.backtest:
-        start = args.start or (
-            _date.fromisoformat(args.date) - timedelta(weeks=_BACKTEST_WEEKS)
-        ).isoformat()
+        start = args.start or (_date.fromisoformat(args.date) - timedelta(weeks=_BACKTEST_WEEKS)).isoformat()
         with open_data_client() as fd:
             with console.status(
                 f"[cyan]{spec.name}: backtesting {start} → {args.date} "
@@ -198,8 +203,7 @@ def main() -> None:
     for sr in record.strategies:
         abstained = sum(1 for s in sr.signals if s.metadata.get("abstained") is True)
         console.print(
-            f"[dim]  {sr.name} ({sr.slice:.0%} of capital): "
-            f"{len(sr.signals)} signals ({abstained} abstained)[/]"
+            f"[dim]  {sr.name} ({sr.slice:.0%} of capital): " f"{len(sr.signals)} signals ({abstained} abstained)[/]"
         )
     n_signals = sum(len(sr.signals) for sr in record.strategies)
     console.print(

@@ -1,24 +1,24 @@
 """v2 LLM layer — provider protocol, provider clients, prompt cache."""
 
 from hedge_fund.llm.anthropic_client import AnthropicLLM
-from hedge_fund.llm.cache import PromptCache, prompt_key
+from hedge_fund.llm.cache import prompt_key, PromptCache
 from hedge_fund.llm.client import (
+    ChatLLM,
     DEFAULT_EFFORT,
     DEFAULT_MODEL,
-    ChatLLM,
+    extract_json,
     LLMClient,
     LLMParseError,
     LLMRefusal,
-    extract_json,
     make_llm,
 )
 from hedge_fund.llm.registry import (
-    PROVIDER_ENV_VARS,
-    SUPPORTED_PROVIDERS,
     env_var_for,
     is_supported,
     load_api_models,
+    PROVIDER_ENV_VARS,
     provider_for,
+    SUPPORTED_PROVIDERS,
 )
 from hedge_fund.llm.watch import ThesisStream
 

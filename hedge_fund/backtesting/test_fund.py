@@ -7,10 +7,10 @@ from hedge_fund.data.models import Price
 from hedge_fund.fund.spec import Fund, FundSpec
 from hedge_fund.models import Signal
 
-
 # ---------------------------------------------------------------------------
 # Fakes (date-aware variants of the run_cycle test fakes)
 # ---------------------------------------------------------------------------
+
 
 class FakeDataClient:
     """Canned closes per ticker per date: {ticker: {date: close}}."""
@@ -21,8 +21,7 @@ class FakeDataClient:
     def get_prices(self, ticker, start_date, end_date, **kwargs):
         days = self._series.get(ticker, {})
         return [
-            Price(open=close, close=close, high=close, low=close,
-                  volume=1000, time=f"{day}T00:00:00Z")
+            Price(open=close, close=close, high=close, low=close, volume=1000, time=f"{day}T00:00:00Z")
             for day, close in sorted(days.items())
             if start_date <= day <= end_date
         ]
@@ -40,8 +39,7 @@ class FakeAnalyst:
         return self._name
 
     def predict(self, ticker, date, data_client):
-        return Signal(model_name=self._name, ticker=ticker, date=date,
-                      value=self._views.get(ticker, 0.0))
+        return Signal(model_name=self._name, ticker=ticker, date=date, value=self._views.get(ticker, 0.0))
 
 
 def _spec(**overrides):
@@ -57,32 +55,42 @@ def _spec(**overrides):
 
 # Three trading weeks (Mon–Fri). Weekly grid = each Friday.
 WEEKDAYS = [
-    "2024-06-03", "2024-06-04", "2024-06-05", "2024-06-06", "2024-06-07",
-    "2024-06-10", "2024-06-11", "2024-06-12", "2024-06-13", "2024-06-14",
-    "2024-06-17", "2024-06-18", "2024-06-19", "2024-06-20", "2024-06-21",
+    "2024-06-03",
+    "2024-06-04",
+    "2024-06-05",
+    "2024-06-06",
+    "2024-06-07",
+    "2024-06-10",
+    "2024-06-11",
+    "2024-06-12",
+    "2024-06-13",
+    "2024-06-14",
+    "2024-06-17",
+    "2024-06-18",
+    "2024-06-19",
+    "2024-06-20",
+    "2024-06-21",
 ]
 FRIDAYS = ["2024-06-07", "2024-06-14", "2024-06-21"]
 
 # Closes chosen so 100k always targets exactly 500 AAPL shares — the fund
 # buys once and then correctly has nothing to trade.
 SERIES = {
-    "SPY": {day: close for day, close in
-            zip(FRIDAYS, [100.0, 102.0, 101.0])},
-    "AAPL": {day: close for day, close in
-             zip(FRIDAYS, [200.0, 210.0, 190.0])},
+    "SPY": {day: close for day, close in zip(FRIDAYS, [100.0, 102.0, 101.0])},
+    "AAPL": {day: close for day, close in zip(FRIDAYS, [200.0, 210.0, 190.0])},
 }
 
 
 def _run(series=SERIES, spec=None):
     spec = spec or _spec()
     fund = Fund(spec, models={"solo": [FakeAnalyst("a", views={"AAPL": 1.0})]})
-    return backtest_fund(fund, "2024-06-03", "2024-06-21",
-                         FakeDataClient(series), ["AAPL"])
+    return backtest_fund(fund, "2024-06-03", "2024-06-21", FakeDataClient(series), ["AAPL"])
 
 
 # ---------------------------------------------------------------------------
 # rebalance_grid
 # ---------------------------------------------------------------------------
+
 
 def test_grid_daily_is_identity():
     assert rebalance_grid(WEEKDAYS, "daily") == WEEKDAYS
@@ -110,6 +118,7 @@ def test_grid_unknown_cadence_raises():
 # ---------------------------------------------------------------------------
 # backtest_fund
 # ---------------------------------------------------------------------------
+
 
 def test_happy_path_hand_computed():
     result = _run()
@@ -145,6 +154,7 @@ def test_deterministic_json_round_trip():
     first, second = _run(), _run()
     assert first.model_dump_json() == second.model_dump_json()
     from hedge_fund.backtesting.fund import FundBacktestResult
+
     assert FundBacktestResult.model_validate_json(first.model_dump_json()) == first
 
 
@@ -152,9 +162,14 @@ def test_on_cycle_fires_per_tick_in_order():
     seen = []
     spec = _spec()
     fund = Fund(spec, models={"solo": [FakeAnalyst("a", views={"AAPL": 1.0})]})
-    backtest_fund(fund, "2024-06-03", "2024-06-21", FakeDataClient(SERIES),
-                  ["AAPL"],
-                  on_cycle=lambda i, n, record: seen.append((i, n, record.as_of)))
+    backtest_fund(
+        fund,
+        "2024-06-03",
+        "2024-06-21",
+        FakeDataClient(SERIES),
+        ["AAPL"],
+        on_cycle=lambda i, n, record: seen.append((i, n, record.as_of)),
+    )
     assert seen == [(0, 3, FRIDAYS[0]), (1, 3, FRIDAYS[1]), (2, 3, FRIDAYS[2])]
 
 

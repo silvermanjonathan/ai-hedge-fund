@@ -42,8 +42,7 @@ def load_api_models() -> list[tuple[str, str, str]]:
     """
     try:
         entries = json.loads(API_MODELS_PATH.read_text())
-        models = [(e["display_name"], e["model_name"], e["provider"])
-                  for e in entries]
+        models = [(e["display_name"], e["model_name"], e["provider"]) for e in entries]
     except (OSError, ValueError, KeyError, TypeError):
         return [_FALLBACK]
     return models or [_FALLBACK]
@@ -52,8 +51,7 @@ def load_api_models() -> list[tuple[str, str, str]]:
 def provider_for(model_id: str) -> str | None:
     """Which provider serves a model id. None if it is not in the registry —
     a hand-exported HEDGE_FUND_LLM_MODEL should not be second-guessed."""
-    return next((prov for _, mid, prov in load_api_models() if mid == model_id),
-                None)
+    return next((prov for _, mid, prov in load_api_models() if mid == model_id), None)
 
 
 def env_var_for(provider: str) -> str | None:

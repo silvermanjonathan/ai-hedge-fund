@@ -22,10 +22,10 @@ class MarketModelFit(BaseModel):
     beta  = stock's sensitivity to market moves (slope).
     """
 
-    alpha: float           # intercept — expected daily return when market return is 0
-    beta: float            # slope — how much the stock amplifies market moves
-    r_squared: float       # fraction of stock variance explained by the market
-    n_obs: int             # number of trading days in the estimation window
+    alpha: float  # intercept — expected daily return when market return is 0
+    beta: float  # slope — how much the stock amplifies market moves
+    r_squared: float  # fraction of stock variance explained by the market
+    n_obs: int  # number of trading days in the estimation window
 
 
 class EventCAR(BaseModel):
@@ -37,15 +37,15 @@ class EventCAR(BaseModel):
     """
 
     ticker: str
-    event_date: str                           # filing_date used as event anchor (YYYY-MM-DD)
-    source_type: str                          # "8-K", "10-Q", "10-K", "20-F"
-    report_period: str                        # fiscal quarter end date
-    eps_surprise: str | None = None           # "BEAT" / "MISS" / "MEET" from quarterly data
-    market_model: MarketModelFit              # the α, β used for this event
+    event_date: str  # filing_date used as event anchor (YYYY-MM-DD)
+    source_type: str  # "8-K", "10-Q", "10-K", "20-F"
+    report_period: str  # fiscal quarter end date
+    eps_surprise: str | None = None  # "BEAT" / "MISS" / "MEET" from quarterly data
+    market_model: MarketModelFit  # the α, β used for this event
     daily_ar: list[float] = Field(default_factory=list)  # AR for each day [0, +20]
-    car_0_1: float | None = None              # cumulative AR over [0, +1] (2 days)
-    car_0_5: float | None = None              # cumulative AR over [0, +5] (6 days)
-    car_0_20: float | None = None             # cumulative AR over [0, +20] (21 days)
+    car_0_1: float | None = None  # cumulative AR over [0, +1] (2 days)
+    car_0_5: float | None = None  # cumulative AR over [0, +5] (6 days)
+    car_0_20: float | None = None  # cumulative AR over [0, +20] (21 days)
 
 
 class BootstrapCI(BaseModel):
@@ -55,10 +55,10 @@ class BootstrapCI(BaseModel):
     computing the mean of each resample, and taking percentiles.
     """
 
-    lower: float                              # lower bound of CI
-    upper: float                              # upper bound of CI
-    confidence: float = 0.95                  # confidence level (default 95%)
-    n_bootstrap: int = 10_000                 # number of bootstrap resamples
+    lower: float  # lower bound of CI
+    upper: float  # upper bound of CI
+    confidence: float = 0.95  # confidence level (default 95%)
+    n_bootstrap: int = 10_000  # number of bootstrap resamples
 
 
 class WindowStats(BaseModel):
@@ -68,13 +68,13 @@ class WindowStats(BaseModel):
     If mean_car is significantly different from 0, the event type moves prices.
     """
 
-    window: str                               # human label: "[0,+1]", "[0,+5]", "[0,+20]"
-    n_events: int                             # number of events with non-null CAR for this window
-    mean_car: float                           # average CAR across events
-    std_car: float                            # standard deviation of CARs (sample, ddof=1)
-    t_stat: float                             # one-sample t-stat vs H0: mean = 0
-    p_value: float                            # two-sided p-value from t-test
-    ci: BootstrapCI                           # bootstrap 95% CI for the mean
+    window: str  # human label: "[0,+1]", "[0,+5]", "[0,+20]"
+    n_events: int  # number of events with non-null CAR for this window
+    mean_car: float  # average CAR across events
+    std_car: float  # standard deviation of CARs (sample, ddof=1)
+    t_stat: float  # one-sample t-stat vs H0: mean = 0
+    p_value: float  # two-sided p-value from t-test
+    ci: BootstrapCI  # bootstrap 95% CI for the mean
 
 
 class AggregateResult(BaseModel):
@@ -85,8 +85,8 @@ class AggregateResult(BaseModel):
     because 8-K filing_date is closer to the actual announcement.
     """
 
-    source_type: str                          # "8-K", "10-Q", "10-K", "20-F"
-    n_events: int                             # total events in this group
+    source_type: str  # "8-K", "10-Q", "10-K", "20-F"
+    n_events: int  # total events in this group
     windows: list[WindowStats] = Field(default_factory=list)
 
 

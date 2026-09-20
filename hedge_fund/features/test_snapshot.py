@@ -3,7 +3,7 @@
 import pytest
 
 from hedge_fund.data.models import CompanyFacts, FinancialMetrics
-from hedge_fund.features.snapshot import InsufficientData, build_snapshot
+from hedge_fund.features.snapshot import build_snapshot, InsufficientData
 
 
 class MockDataClient:
@@ -15,9 +15,7 @@ class MockDataClient:
         self.metrics_calls = []
 
     def get_financial_metrics(self, ticker, end_date, period="ttm", limit=10):
-        self.metrics_calls.append(
-            {"ticker": ticker, "end_date": end_date, "period": period, "limit": limit}
-        )
+        self.metrics_calls.append({"ticker": ticker, "end_date": end_date, "period": period, "limit": limit})
         return self._metrics
 
     def get_company_facts(self, ticker):
@@ -42,8 +40,16 @@ def _metric(report_period, **kwargs):
 
 def _history(n=8):
     """n periods, newest first, quarter-spaced."""
-    quarters = ["2024-12-31", "2024-09-30", "2024-06-30", "2024-03-31",
-                "2023-12-31", "2023-09-30", "2023-06-30", "2023-03-31"]
+    quarters = [
+        "2024-12-31",
+        "2024-09-30",
+        "2024-06-30",
+        "2024-03-31",
+        "2023-12-31",
+        "2023-09-30",
+        "2023-06-30",
+        "2023-03-31",
+    ]
     return [_metric(q) for q in quarters[:n]]
 
 

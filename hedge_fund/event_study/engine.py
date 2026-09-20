@@ -31,8 +31,8 @@ from datetime import date, datetime, timedelta
 
 import numpy as np
 
-from hedge_fund.data.protocol import DataClient
 from hedge_fund.data.models import EarningsRecord
+from hedge_fund.data.protocol import DataClient
 from hedge_fund.event_study.models import (
     AggregateResult,
     EventCAR,
@@ -52,18 +52,19 @@ logger = logging.getLogger(__name__)
 # --- Configuration ---
 # These could become function params later, but are constants for v0.
 
-_MARKET_TICKER = "SPY"             # market proxy for the market model
-_ESTIMATION_START = -250           # start of estimation window (trading days before event)
-_ESTIMATION_END = -11              # end of estimation window (10-day buffer avoids contamination)
-_MIN_ESTIMATION_DAYS = 200         # skip events without enough pre-event price history
-_MAX_EVENT_WINDOW = 20             # widest post-event window (day 0 through day +20)
-_RETROSPECTIVE_CUTOFF_DAYS = 45    # max days between filing_date and report_period
+_MARKET_TICKER = "SPY"  # market proxy for the market model
+_ESTIMATION_START = -250  # start of estimation window (trading days before event)
+_ESTIMATION_END = -11  # end of estimation window (10-day buffer avoids contamination)
+_MIN_ESTIMATION_DAYS = 200  # skip events without enough pre-event price history
+_MAX_EVENT_WINDOW = 20  # widest post-event window (day 0 through day +20)
+_RETROSPECTIVE_CUTOFF_DAYS = 45  # max days between filing_date and report_period
 _CAR_WINDOWS = [(0, 1), (0, 5), (0, 20)]  # the three event windows we compute CARs for
 
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def compute_car(
     tickers: list[str],
@@ -111,7 +112,10 @@ def compute_car(
 
     for ticker in tickers:
         events = _compute_ticker_events(
-            ticker, data_client, spy_closes, earnings_limit=earnings_limit,
+            ticker,
+            data_client,
+            spy_closes,
+            earnings_limit=earnings_limit,
         )
         if events:
             all_events.extend(events)
@@ -126,13 +130,16 @@ def compute_car(
     aggregates = _aggregate(all_events, n_bootstrap, rng_seed)
 
     return EventStudyResult(
-        events=all_events, aggregates=aggregates, skipped_tickers=skipped,
+        events=all_events,
+        aggregates=aggregates,
+        skipped_tickers=skipped,
     )
 
 
 # ---------------------------------------------------------------------------
 # Per-ticker processing
 # ---------------------------------------------------------------------------
+
 
 def _compute_ticker_events(
     ticker: str,
@@ -197,7 +204,11 @@ def _compute_ticker_events(
     events: list[EventCAR] = []
     for record in records:
         event = _process_event(
-            record, stock_returns, spy_returns, return_days, day_to_idx,
+            record,
+            stock_returns,
+            spy_returns,
+            return_days,
+            day_to_idx,
         )
         if event is not None:
             events.append(event)
@@ -208,6 +219,7 @@ def _compute_ticker_events(
 # ---------------------------------------------------------------------------
 # Per-event processing
 # ---------------------------------------------------------------------------
+
 
 def _process_event(
     record: EarningsRecord,
@@ -295,6 +307,7 @@ def _process_event(
 # Cross-sectional aggregation
 # ---------------------------------------------------------------------------
 
+
 def _aggregate(
     events: list[EventCAR],
     n_bootstrap: int,
@@ -340,19 +353,25 @@ def _aggregate(
             t, p = ttest_cars(cars_arr)
             ci = bootstrap_ci(cars_arr, n_bootstrap=n_bootstrap, rng_seed=rng_seed)
 
-            windows.append(WindowStats(
-                window=window_label,
-                n_events=len(values),
-                mean_car=mean,
-                std_car=std,
-                t_stat=t,
-                p_value=p,
-                ci=ci,
-            ))
+            windows.append(
+                WindowStats(
+                    window=window_label,
+                    n_events=len(values),
+                    mean_car=mean,
+                    std_car=std,
+                    t_stat=t,
+                    p_value=p,
+                    ci=ci,
+                )
+            )
 
-        results.append(AggregateResult(
-            source_type=source_type, n_events=len(group), windows=windows,
-        ))
+        results.append(
+            AggregateResult(
+                source_type=source_type,
+                n_events=len(group),
+                windows=windows,
+            )
+        )
 
     return results
 
@@ -360,6 +379,7 @@ def _aggregate(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _parse_date(s: str) -> date:
     """Parse 'YYYY-MM-DD' string to a date object."""
@@ -385,7 +405,10 @@ def _filter_retrospective(records: list[EarningsRecord]) -> list[EarningsRecord]
         else:
             logger.debug(
                 "Filtered retrospective: %s %s filed %s (report %s, %d days)",
-                r.ticker, r.source_type, r.filing_date, r.report_period,
+                r.ticker,
+                r.source_type,
+                r.filing_date,
+                r.report_period,
                 (filing - report).days,
             )
     return kept

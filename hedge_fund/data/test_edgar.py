@@ -12,7 +12,11 @@ from hedge_fund.data import edgar as edgar_module
 from hedge_fund.data.edgar import EdgarClient, EdgarError, SEC_USER_AGENT_ENV
 from hedge_fund.data.errors import DataClientError
 
-TICKERS = {"0": {"cik_str": 1045810, "ticker": "NVDA", "title": "NVIDIA CORP"}, "1": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."}, "2": {"cik_str": 1067983, "ticker": "BRK-B", "title": "BERKSHIRE HATHAWAY INC"}}
+TICKERS = {
+    "0": {"cik_str": 1045810, "ticker": "NVDA", "title": "NVIDIA CORP"},
+    "1": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."},
+    "2": {"cik_str": 1067983, "ticker": "BRK-B", "title": "BERKSHIRE HATHAWAY INC"},
+}
 
 
 class _FakeResponse:
@@ -160,7 +164,12 @@ from hedge_fund.data.edgar import (  # noqa: E402
     successor_filing,
 )
 
-_8K12B = "<html><body><p>On July 1, 2026, Exxon Mobil Corporation, a New Jersey corporation and the " "predecessor registrant (&#8220;ExxonMobil&#8221;), merged with Ensign LLC. This Current Report " "on Form 8-K is being filed for the purpose of establishing ExxonMobil Holdings Corporation as the " "successor registrant of ExxonMobil&#8217;s common stock pursuant to Rule 12g-3(a).</p></body></html>"
+_8K12B = (
+    "<html><body><p>On July 1, 2026, Exxon Mobil Corporation, a New Jersey corporation and the "
+    "predecessor registrant (&#8220;ExxonMobil&#8221;), merged with Ensign LLC. This Current Report "
+    "on Form 8-K is being filed for the purpose of establishing ExxonMobil Holdings Corporation as the "
+    "successor registrant of ExxonMobil&#8217;s common stock pursuant to Rule 12g-3(a).</p></body></html>"
+)
 _SUBMISSIONS = {
     "name": "ExxonMobil Holdings Corp",
     "filings": {
@@ -172,12 +181,18 @@ _SUBMISSIONS = {
         }
     },
 }
-_ATOM = '<?xml version="1.0"?><feed><company-info><cik>0000034088</cik>' "<conformed-name>EXXON MOBIL CORP</conformed-name></company-info></feed>"
+_ATOM = (
+    '<?xml version="1.0"?><feed><company-info><cik>0000034088</cik>'
+    "<conformed-name>EXXON MOBIL CORP</conformed-name></company-info></feed>"
+)
 
 
 def test_predecessor_name_via_defined_term_and_direct_form():
     assert predecessor_name(_8K12B) == "Exxon Mobil Corporation"
-    assert predecessor_name("<p>Newco Inc. is the successor issuer to Oldco Holdings Corp. pursuant to Rule 12g-3.</p>") == "Oldco Holdings Corp."
+    assert (
+        predecessor_name("<p>Newco Inc. is the successor issuer to Oldco Holdings Corp. pursuant to Rule 12g-3.</p>")
+        == "Oldco Holdings Corp."
+    )
     assert predecessor_name("<p>An ordinary 8-K about a dividend.</p>") is None
 
 
@@ -190,11 +205,35 @@ def test_company_name_normalisation():
 
 def test_successor_filing_picks_the_earliest_8k12():
     assert successor_filing(_SUBMISSIONS) == ("0001193125-26-291990", "d71068d8k12b.htm")
-    assert successor_filing({"filings": {"recent": {"form": ["10-K"], "filingDate": ["2025-02-01"], "accessionNumber": ["a"], "primaryDocument": ["b"]}}}) is None
+    assert (
+        successor_filing(
+            {
+                "filings": {
+                    "recent": {
+                        "form": ["10-K"],
+                        "filingDate": ["2025-02-01"],
+                        "accessionNumber": ["a"],
+                        "primaryDocument": ["b"],
+                    }
+                }
+            }
+        )
+        is None
+    )
 
 
 def test_predecessor_cik_end_to_end_and_cached(client, tmp_path):
-    plain = {"name": "EXXON MOBIL CORP", "filings": {"recent": {"form": ["10-K"], "filingDate": ["2025-02-26"], "accessionNumber": ["a"], "primaryDocument": ["b"]}}}
+    plain = {
+        "name": "EXXON MOBIL CORP",
+        "filings": {
+            "recent": {
+                "form": ["10-K"],
+                "filingDate": ["2025-02-26"],
+                "accessionNumber": ["a"],
+                "primaryDocument": ["b"],
+            }
+        },
+    }
     calls = _stub(
         client,
         [
@@ -214,12 +253,32 @@ def test_predecessor_cik_end_to_end_and_cached(client, tmp_path):
 
 
 def test_predecessor_none_without_succession_filing(client):
-    _stub(client, [_FakeResponse(payload={"name": "Plain Co", "filings": {"recent": {"form": ["10-K"], "filingDate": ["2025-02-01"], "accessionNumber": ["a"], "primaryDocument": ["b"]}}})])
+    _stub(
+        client,
+        [
+            _FakeResponse(
+                payload={
+                    "name": "Plain Co",
+                    "filings": {
+                        "recent": {
+                            "form": ["10-K"],
+                            "filingDate": ["2025-02-01"],
+                            "accessionNumber": ["a"],
+                            "primaryDocument": ["b"],
+                        }
+                    },
+                }
+            )
+        ],
+    )
     assert client.predecessor_cik(1) is None
     assert client.cik_chain(1) == [1]
 
 
 def test_predecessor_none_when_search_is_ambiguous(client):
-    two = _ATOM.replace("</feed>", "<company-info><cik>0000099999</cik><conformed-name>EXXON MOBIL CORP</conformed-name></company-info></feed>")
+    two = _ATOM.replace(
+        "</feed>",
+        "<company-info><cik>0000099999</cik><conformed-name>EXXON MOBIL CORP</conformed-name></company-info></feed>",
+    )
     _stub(client, [_FakeResponse(payload=_SUBMISSIONS), _FakeResponse(text=_8K12B), _FakeResponse(text=two)])
     assert client.predecessor_cik(2115436) is None

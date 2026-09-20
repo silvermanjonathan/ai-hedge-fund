@@ -6,10 +6,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-
 # ---------------------------------------------------------------------------
 # Quantitative Signal Models
 # ---------------------------------------------------------------------------
+
 
 class Signal(BaseModel):
     """A view from an alpha model — conviction on a ticker at a point in time.
@@ -44,6 +44,7 @@ class QuantSignals(BaseModel):
 # ---------------------------------------------------------------------------
 # LLM analyst output
 # ---------------------------------------------------------------------------
+
 
 class AnalystVerdict(BaseModel):
     """What an LLM investor agent must answer — the schema every persona

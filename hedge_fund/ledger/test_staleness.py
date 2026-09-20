@@ -29,7 +29,10 @@ class FakeEdgar:
 
 
 def test_newer_filing_warns_with_the_exact_text():
-    assert facts_lag_warning(FakeEdgar(), "CTSH", "2026-04-29") == "facts lag: 10-Q filed 2026-07-29 not yet in EDGAR companyfacts; verdicts reflect the prior quarter"
+    assert (
+        facts_lag_warning(FakeEdgar(), "CTSH", "2026-04-29")
+        == "facts lag: 10-Q filed 2026-07-29 not yet in EDGAR companyfacts; verdicts reflect the prior quarter"
+    )
     assert WARNING.startswith("facts lag: ")
 
 
@@ -50,8 +53,13 @@ def test_amendments_and_8ks_do_not_count_as_a_new_quarter():
 
 
 def test_annotate_appends_and_keeps_existing_warnings():
-    stale_c = Candidate("CTSH", "long", ["consensus_long"], ["a"], [], [], 70.0, "2026-04-29", warnings=["chanos bearish at 62"])
+    stale_c = Candidate(
+        "CTSH", "long", ["consensus_long"], ["a"], [], [], 70.0, "2026-04-29", warnings=["chanos bearish at 62"]
+    )
     fresh_c = Candidate("AAPL", "long", ["consensus_long"], ["a"], [], [], 70.0, "2026-07-31")
     assert annotate_staleness([stale_c, fresh_c], FakeEdgar()) == ["CTSH"]
-    assert stale_c.warnings == ["chanos bearish at 62", "facts lag: 10-Q filed 2026-07-29 not yet in EDGAR companyfacts; verdicts reflect the prior quarter"]
+    assert stale_c.warnings == [
+        "chanos bearish at 62",
+        "facts lag: 10-Q filed 2026-07-29 not yet in EDGAR companyfacts; verdicts reflect the prior quarter",
+    ]
     assert fresh_c.warnings == []
