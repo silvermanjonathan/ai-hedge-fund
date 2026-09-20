@@ -52,14 +52,13 @@ REQUIRED = {
     "ignore anything after that filing": "do not use any knowledge of anything that",
     "do not fabricate figures": "Do not invent numbers",
     "answer as JSON only": "Respond with JSON only",
+    "abstain on thin data": "If the data is insufficient to judge",
 }
 
-# The abstain clause, which three older personas predate. See
-# test_abstain_clause_coverage for the full reasoning; this set is a record
-# of a known gap, not a licence to grow. Adding a persona here requires a
-# reason better than "the test failed".
-ABSTAIN_CLAUSE = "If the data is insufficient to judge"
-ABSTAIN_EXEMPT = {"druckenmiller", "lynch", "munger"}
+# All 18 carry this verbatim. Asserting the exact sentence, not just the
+# idea, keeps it from drifting into eighteen paraphrases that are hard to
+# compare when a school's scorecard looks off.
+ABSTAIN_CLAUSE = "- If the data is insufficient to judge, say so and go neutral."
 
 
 def prompt_for(name: str) -> str:
@@ -96,7 +95,7 @@ def test_persona_emits_the_verdict_schema(persona):
         assert verdict in prompt, f"{persona} never offers {verdict!r} as a signal"
 
 
-@pytest.mark.parametrize("persona", sorted(set(PERSONAS) - ABSTAIN_EXEMPT))
+@pytest.mark.parametrize("persona", PERSONAS)
 def test_persona_says_to_abstain_on_thin_data(persona):
     """Go neutral rather than guess when the snapshot cannot support a call.
 
@@ -106,26 +105,18 @@ def test_persona_says_to_abstain_on_thin_data(persona):
     build a snapshot, but too many blank columns to judge. Without it a
     persona can return a confident-looking call on thin data, and confidence
     is what sizes the position.
+
+    druckenmiller, lynch, and munger predated this clause and were brought
+    into line in Sept 2026, at the cost of their prompt caches.
     """
     assert ABSTAIN_CLAUSE in prompt_for(persona)
 
 
-def test_abstain_clause_coverage():
-    """Pins exactly which personas lack the abstain clause.
-
-    druckenmiller, lynch, and munger predate it — all three are from the
-    original five and carry a different second bullet instead (munger "be
-    blunt", lynch "plain language", druckenmiller a scope note about having
-    no macro data). Closing the gap is a deliberate prompt change that
-    invalidates those three personas' caches, so it is recorded here rather
-    than quietly fixed.
-
-    This test fails if the gap GROWS or if it is closed, so neither can
-    happen silently.
-    """
-    actual = {p for p in PERSONAS if ABSTAIN_CLAUSE not in prompt_for(p)}
-    assert actual == ABSTAIN_EXEMPT, (
-        f"abstain-clause gap changed.\nexpected: {sorted(ABSTAIN_EXEMPT)}\n"
-        f"actual:   {sorted(actual)}\n"
-        "If you closed it, shrink ABSTAIN_EXEMPT in the same commit."
+def test_the_abstain_clause_is_worded_identically_everywhere():
+    """Eighteen schools are compared against each other on the scorecard.
+    They have to be told to abstain in the same words, or a difference in
+    neutral_share is a difference in phrasing rather than in judgment."""
+    offenders = sorted(p for p in PERSONAS if ABSTAIN_CLAUSE not in prompt_for(p))
+    assert not offenders, (
+        f"{offenders} word the abstain rule differently. Copy the line from " "hedge_fund/signals/buffett.py verbatim."
     )
