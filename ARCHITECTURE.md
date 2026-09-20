@@ -454,6 +454,32 @@ is still open:
 4. When is the `PriceSource` swap worth doing? It is now on the critical
    path for `druckenmiller` and two library strategies, not just a data
    upgrade (§12).
+5. **Should the test suite isolate `HOME`?** A test that reads a default
+   under `~/.hedge-fund/` passes on a developer machine, where the
+   directory is populated, and fails on a clean runner. This is not
+   hypothetical: `test_ingest_scorecard_candidates` did exactly that in
+   Sept 2026 and was caught only because CI existed. That instance is
+   fixed by passing an explicit `--mandate`, but the class is not — every
+   default rooted in `paths.py` is exposed, and by construction the failure
+   never reproduces locally.
+
+   *What it touches, and why it was not just done:* `hedge_fund/conftest.py`
+   currently calls `load_dotenv()` so the live tests can find
+   `FINANCIAL_DATASETS_API_KEY`, and the credential layer reads
+   `~/.hedge-fund/.env` with shell variables taking precedence. A fixture
+   that redirects `HOME` for every test would cut both, so the live tests
+   need their key sourced before the redirect, or an explicit opt-out. The
+   change is small and the interaction is not, which is why it is a
+   decision rather than a cleanup.
+
+   *What would settle it:* a session fixture pointing `HOME` at `tmp_path`
+   with the live-test keys captured first, plus a check that no module
+   under `hedge_fund/` reads `Path.home()` outside `paths.py`.
+6. **Should a live run record its own verdicts?** See the assessment
+   accompanying this branch: `aihf <mandate> --tickers` discards its
+   CycleRecord unless `--out` is passed, so a hand-run desk produces paid
+   LLM verdicts that never reach the ledger. 101 of them exist only as
+   prompt-cache entries. Undecided.
 
 **Answered, for the record:** `validation/` is deferred with a date, not
 abandoned (~Dec 2026). `event_study/` is wanted and its library is
@@ -480,6 +506,26 @@ know they were examined rather than missed.
 | Persona tail unverified (row 8) | All 18 prompt bodies read. `druckenmiller`, `lynch` and `munger` lacked the abstain clause and now carry it, at the cost of 50 cached verdicts. `test_persona_contract.py` enforces the tail and its exact wording. |
 | Prompt text unguarded | The cost model depends on `render()` being byte-stable — no test covered it, because the existing ones compared `render()` to itself. A golden fixture and a pinned `content_hash` now do. |
 | `.gitignore` eating real files | A blanket `*.txt` silently swallowed the golden fixture. `*.png`/`*.pdf` are root-anchored; `*.txt` removed outright. |
+
+### A principle worth stating
+
+The `classify()` correction in the coverage work generalizes, and it is the
+rule to apply to anything added here later:
+
+> **Anything answerable from the ledger alone must not depend on
+> configuration that varies by machine.**
+
+Whether a school has 20 scored calls is a fact about the ledger. Whether it
+will accumulate more is a fact about which mandates run, which differs per
+machine and may be absent entirely. Binding the first to the second made
+the scorecard silently useless anywhere without mandate files — it withheld
+rankings it had the data to produce.
+
+The same rule caught a second instance one layer down: a test that read the
+real `~/.hedge-fund/mandates/` passed here and failed on a clean runner
+(§11.5). Both failures share a shape — a fact that should have come from
+data was taken from the environment — and neither reproduces on the machine
+that wrote it.
 
 ### Examined and kept
 
