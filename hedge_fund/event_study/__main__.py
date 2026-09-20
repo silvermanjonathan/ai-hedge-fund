@@ -1,6 +1,17 @@
 """Run the event study engine. Screen-record friendly output.
 
-Usage: poetry run python -m hedge_fund.event_study
+Usage: poetry run python -m hedge_fund.event_study  (needs --data fd)
+
+DRIFTED DEMO — kept as-is, deliberately. This script predates the library
+settling into its current shape and no longer uses it properly: it drives
+the private _compute_ticker_events() in a loop of its own rather than
+calling engine.compute_car(), which already does exactly that and returns
+the cross-sectional aggregates too. The per-event table below is real; the
+statistics that are the point of an event study are never rendered.
+
+Not fixed because the fix produces a CLI that still cannot run without a
+Financial Datasets key. Use engine.compute_car() directly if you need the
+aggregates. See hedge_fund/event_study/__init__.py for the package status.
 """
 
 from __future__ import annotations
