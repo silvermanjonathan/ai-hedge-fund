@@ -15,7 +15,8 @@ mandate's benchmark's actual bars — holidays and half-weeks fall out
 naturally, no exchange calendar math.
 
 This is the fund-level counterpart to the per-model harness in engine.py
-(BacktestEngine simulates one alpha model's views with fixed mechanics;
+(BacktestEngine isolates ONE alpha model with fixed mechanics — see its
+module docstring; both are kept because they answer different questions;
 backtest_fund runs the whole shop).
 """
 
