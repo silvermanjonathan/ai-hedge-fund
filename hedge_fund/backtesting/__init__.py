@@ -3,6 +3,7 @@
 from hedge_fund.backtesting.engine import BacktestEngine
 from hedge_fund.backtesting.fund import (
     backtest_fund,
+    DEFAULT_BACKTEST_WEEKS,
     FundBacktestMetrics,
     FundBacktestResult,
     rebalance_grid,
@@ -11,6 +12,7 @@ from hedge_fund.backtesting.models import BacktestResult, PerformanceMetrics, Tr
 
 __all__ = [
     "BacktestEngine",
+    "DEFAULT_BACKTEST_WEEKS",
     "BacktestResult",
     "FundBacktestMetrics",
     "FundBacktestResult",

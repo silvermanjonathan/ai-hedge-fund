@@ -58,6 +58,14 @@ from textual.widgets.selection_list import Selection
 from hedge_fund.backtesting import backtest_fund, FundBacktestResult, rebalance_grid
 from hedge_fund.backtesting.fund import _PERIODS_PER_YEAR
 from hedge_fund.brokers import Fill, SimBroker
+from hedge_fund.config import (
+    apply_credentials,
+    ENV_PATH,
+    masked,
+    missing_key,
+    PROVIDER_ENV_VARS,
+    save_credential,
+)
 from hedge_fund.data import (
     missing_data_key,
     open_data_client,
@@ -78,14 +86,6 @@ from hedge_fund.models import Signal
 from hedge_fund.pipeline import CycleRecord, run_cycle
 from hedge_fund.pipeline.run_cycle import _MARK_LOOKBACK_DAYS
 from hedge_fund.signals import ALPHA_MODEL_REGISTRY, LLMAgent
-from hedge_fund.tui.keys import (
-    apply_credentials,
-    ENV_PATH,
-    masked,
-    missing_key,
-    PROVIDER_ENV_VARS,
-    save_credential,
-)
 from hedge_fund.tui.shared import (
     _agent_names,
     _BACKTEST_WEEKS,
@@ -2089,7 +2089,7 @@ class HedgeFundApp(App):
 
     def on_mount(self) -> None:
         # Saved keys become environment variables before any screen builds an
-        # agent. Anything already exported wins — see hedge_fund/tui/keys.py.
+        # agent. Anything already exported wins — see hedge_fund/config/credentials.py.
         apply_credentials()
         ensure_mandates_dir()
         self.push_screen(HomeScreen())

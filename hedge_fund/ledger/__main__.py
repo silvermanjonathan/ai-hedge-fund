@@ -14,6 +14,7 @@ import argparse
 import sys
 from datetime import date
 
+from hedge_fund.config import apply_credentials
 from hedge_fund.data import open_data_client
 from hedge_fund.data.edgar import EdgarClient, EdgarError
 from hedge_fund.ledger.rules import (
@@ -25,7 +26,6 @@ from hedge_fund.ledger.rules import (
 from hedge_fund.ledger.score import HORIZONS, scorecard
 from hedge_fund.ledger.staleness import annotate_staleness
 from hedge_fund.ledger.store import DEFAULT_LEDGER_PATH, Ledger
-from hedge_fund.tui.keys import apply_credentials
 
 
 def main(argv: list[str] | None = None) -> None:

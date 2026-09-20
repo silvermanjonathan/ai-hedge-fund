@@ -22,8 +22,8 @@ import argparse
 import json
 import sys
 
+from hedge_fund.config import apply_credentials
 from hedge_fund.data.edgar import EdgarClient, EdgarError
-from hedge_fund.tui.keys import apply_credentials
 from hedge_fund.universe.edgar_check import edgar_filter
 from hedge_fund.universe.finviz import fetch, FinvizError, PRESETS, resolve
 

@@ -15,6 +15,7 @@ from pathlib import Path
 
 from rich.text import Text
 
+from hedge_fund.backtesting import DEFAULT_BACKTEST_WEEKS
 from hedge_fund.fund import FundSpec, StrategySpec
 from hedge_fund.llm import is_supported, load_api_models  # noqa: F401  (re-export)
 from hedge_fund.paths import (  # noqa: F401  (re-export)
@@ -91,7 +92,9 @@ _DEFAULT_MODEL_LABEL = "Fable 5.1"
 
 DEFAULT_RISK = {"max_position_pct": 0.25, "max_gross_exposure": 1.0}
 DEFAULT_CAPITAL = 100_000.0
-_BACKTEST_WEEKS = 78  # ~18 months of history for the default backtest window
+# Canonical home is hedge_fund.backtesting; re-exported under the old name
+# so the app's import block is unchanged.
+_BACKTEST_WEEKS = DEFAULT_BACKTEST_WEEKS
 _CYCLE_DWELL = 0.08  # min seconds per backtest tick, so the curve draws visibly
 _BOARD_REFRESH = 1 / 12  # seconds between run-board repaints — smooth, not frantic
 _WARM_CHUNK = 10  # dates per warm task — small enough that one stock still fans out

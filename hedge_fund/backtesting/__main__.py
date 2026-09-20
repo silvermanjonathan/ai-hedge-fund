@@ -285,7 +285,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    from hedge_fund.tui.keys import apply_credentials
+    from hedge_fund.config import apply_credentials
 
     apply_credentials()
     main()

@@ -35,8 +35,9 @@ from pathlib import Path
 
 from rich.console import Console
 
-from hedge_fund.backtesting import backtest_fund
+from hedge_fund.backtesting import backtest_fund, DEFAULT_BACKTEST_WEEKS
 from hedge_fund.brokers import SimBroker
+from hedge_fund.config import apply_credentials
 from hedge_fund.data import (
     data_source,
     missing_data_key,
@@ -46,8 +47,6 @@ from hedge_fund.data import (
 from hedge_fund.fund import Fund, load_spec, normalize_universe
 from hedge_fund.paths import ensure_mandates_dir
 from hedge_fund.pipeline import run_cycle
-from hedge_fund.tui.keys import apply_credentials
-from hedge_fund.tui.shared import _BACKTEST_WEEKS
 
 
 def main() -> None:
@@ -85,7 +84,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--start",
-        help=f"backtest start date YYYY-MM-DD (default: {_BACKTEST_WEEKS} weeks " "before --date)",
+        help=f"backtest start date YYYY-MM-DD (default: {DEFAULT_BACKTEST_WEEKS} weeks " "before --date)",
     )
     parser.add_argument(
         "--model",
@@ -163,7 +162,7 @@ def main() -> None:
     fund = Fund(spec)
 
     if args.backtest:
-        start = args.start or (_date.fromisoformat(args.date) - timedelta(weeks=_BACKTEST_WEEKS)).isoformat()
+        start = args.start or (_date.fromisoformat(args.date) - timedelta(weeks=DEFAULT_BACKTEST_WEEKS)).isoformat()
         with open_data_client() as fd:
             with console.status(
                 f"[cyan]{spec.name}: backtesting {start} → {args.date} "

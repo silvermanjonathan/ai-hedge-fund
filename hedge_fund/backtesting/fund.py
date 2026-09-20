@@ -35,6 +35,12 @@ from hedge_fund.pipeline.run_cycle import run_cycle
 
 _PERIODS_PER_YEAR = {"daily": 252, "weekly": 52, "monthly": 12}
 
+# Default backtest window when no --start is given: ~18 months of history.
+# A backtest parameter, not a presentation constant — it lived in
+# hedge_fund/tui/shared.py, which forced the headless CLI to import the
+# interactive app's package for it.
+DEFAULT_BACKTEST_WEEKS = 78
+
 
 class FundBacktestMetrics(BaseModel):
     """The numbers that say whether the fund worked, and against what."""
