@@ -17,6 +17,7 @@ from datetime import date
 from hedge_fund.config import apply_credentials
 from hedge_fund.data import open_data_client
 from hedge_fund.data.edgar import EdgarClient, EdgarError
+from hedge_fund.ledger.coverage import mandate_paths, staffed_schools
 from hedge_fund.ledger.rules import (
     playbook,
     PlaybookConfig,
@@ -47,6 +48,17 @@ def main(argv: list[str] | None = None) -> None:
     p_score.add_argument("--min-calls", type=int, default=20)
     p_score.add_argument("--today", default=date.today().isoformat(), help="score as of this date (default today)")
     p_score.add_argument("--json", action="store_true")
+    p_score.add_argument(
+        "--mandate",
+        action="append",
+        metavar="PATH",
+        help="a mandate whose staffing counts as 'in the rotation'; repeatable. "
+        "Decides provisional vs ad-hoc, which the ledger cannot: a school "
+        "re-reasons only when a filing changes, so one squarely in the rotation "
+        "can add no rows for a quarter. Default: every mandate in "
+        "~/.hedge-fund/mandates/, which answers 'could run' rather than 'does "
+        "run' — pass the desks you actually run (scripts/weekly.sh does).",
+    )
 
     p_cand = sub.add_parser("candidates", help="combine the latest verdicts per ticker into candidates for review")
     p_cand.add_argument("--min-schools", type=int, default=PlaybookConfig.min_schools)
@@ -68,9 +80,14 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command == "scorecard":
         horizons = HORIZONS if args.horizon == "all" else (int(args.horizon),)
+        paths = mandate_paths(args.mandate)
+        staffed = staffed_schools(paths)
         with open_data_client() as fd:
-            card = scorecard(ledger, fd, args.today, horizons=horizons, min_calls=args.min_calls)
+            card = scorecard(ledger, fd, args.today, horizons=horizons, min_calls=args.min_calls, staffed=staffed)
         print(card.to_json() if args.json else card.render())
+        if not args.json:
+            where = ", ".join(p.name for p in paths) if paths else "none found"
+            print(f"\nStaffing read from: {where}", file=sys.stderr)
         return
 
     if args.command == "candidates":

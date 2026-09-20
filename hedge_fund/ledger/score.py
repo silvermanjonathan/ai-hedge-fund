@@ -9,10 +9,18 @@ measured against the equal-weight return of every ticker the same school saw
 on the same desk on the same day — the fairer bar when the universe itself
 was screened for quality.
 
-The status column labels sample size honestly: "provisional" below
-min_calls, then "earned" when the 63-day mean is positive with a hit rate
-above one half, else "probation". It is information for the user; nothing
-here changes a registry or a mandate.
+Every school in hedge_fund.roster appears in the output, whether or not it
+has a single call, each carrying a coverage state (see ledger/coverage.py).
+That is deliberate: this scorecard exists to decide which schools keep
+their seat, and it cannot do that for a school it silently omits. A ranking
+of the nine schools that happen to run weekly, printed with no mention of
+the other nine, reads as complete when it is not.
+
+Two columns, two questions. `coverage` says whether the numbers may be read
+as a result at all. `status` is the judgment, and is only filled in when
+coverage is "scored" — "earned" when the 63-day mean is positive with a hit
+rate above one half, else "probation". Everything here is information for
+the user; nothing changes a registry or a mandate.
 """
 
 from __future__ import annotations
@@ -26,7 +34,17 @@ from dataclasses import asdict, dataclass
 from datetime import date, timedelta
 
 from hedge_fund.data.protocol import DataClient
+from hedge_fund.ledger.coverage import (
+    AD_HOC,
+    classify,
+    LEGEND,
+    PROVISIONAL,
+    SCORED,
+    STATE_ORDER,
+    UNSTAFFED,
+)
 from hedge_fund.ledger.store import BENCHMARK, Ledger
+from hedge_fund.roster import blocked_reason, SCHOOLS
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +65,7 @@ class ScoreRow:
     stderr: float | None
     mean_vs_universe: float | None
     neutral_share: float | None
+    coverage: str
     status: str
 
 
@@ -57,23 +76,78 @@ class Scorecard:
     horizons: tuple[int, ...]
     rows: list[ScoreRow]
 
+    @property
+    def coverage_by_state(self) -> dict[str, list[str]]:
+        """school names grouped by coverage state, every roster school once."""
+        seen: dict[str, str] = {}
+        for r in self.rows:
+            seen[r.school] = r.coverage
+        grouped: dict[str, list[str]] = {state: [] for state in STATE_ORDER}
+        for school, state in sorted(seen.items()):
+            grouped.setdefault(state, []).append(school)
+        return grouped
+
     def render(self) -> str:
-        head = f"{'school':26}| {'h':>4} | {'n':>4} | {'hit':>6} | {'mean vs SPY':>18} | {'vs universe':>12} | {'neutral':>8} | status"  # noqa: E501
         lines = [
             f"Scorecard as of {self.today} (min_calls={self.min_calls}; excess over SPY, signed by the call)",
-            head,
-            "-" * len(head),
+            "",
+            self._render_coverage(),
+            "",
         ]
-        for r in self.rows:
+
+        head = f"{'school':26}| {'h':>4} | {'n':>4} | {'hit':>6} | {'mean vs SPY':>18} | {'vs universe':>12} | {'neutral':>8} | {'coverage':12} | status"  # noqa: E501
+        lines += [head, "-" * len(head)]
+        ranked = [r for r in self.rows if r.n or r.coverage in (SCORED, PROVISIONAL)]
+        for r in ranked:
             mean = (
                 "-"
                 if r.mean_signed is None
                 else f"{r.mean_signed:+.2%}" + ("" if r.stderr is None else f" ± {r.stderr:.2%}")
             )
             lines.append(
-                f"{r.school:26}| {r.horizon:>4} | {r.n:>4} | {_pct(r.hit_rate):>6} | {mean:>18} | {_pct(r.mean_vs_universe, signed=True):>12} | {_pct(r.neutral_share):>8} | {r.status}"  # noqa: E501
+                f"{r.school:26}| {r.horizon:>4} | {r.n:>4} | {_pct(r.hit_rate):>6} | {mean:>18} | {_pct(r.mean_vs_universe, signed=True):>12} | {_pct(r.neutral_share):>8} | {r.coverage:12} | {r.status}"  # noqa: E501
             )
+
+        # Schools with no rows at all are named here rather than printed as
+        # empty table rows, so the table stays readable and they still cannot
+        # be mistaken for absent.
+        silent = [r.school for r in self.rows if not r.n and r.coverage not in (SCORED, PROVISIONAL)]
+        for school in sorted(set(silent)):
+            state = next(r.coverage for r in self.rows if r.school == school)
+            note = blocked_reason(school)
+            detail = f" — {note.split('.')[0]}." if note else ""
+            lines.append(
+                f"{school:26}|    - |    - |      - |                  - |            - |        - | {state:12} | not ranked{detail}"  # noqa: E501
+            )  # noqa: E501
         return "\n".join(lines)
+
+    def _render_coverage(self) -> str:
+        grouped = self.coverage_by_state
+        total = sum(len(v) for v in grouped.values())
+        out = [f"Coverage — {total} schools in the registry"]
+        for state in STATE_ORDER:
+            names = grouped.get(state) or []
+            shown = ", ".join(names) if names else "—"
+            out.append(f"  {state:12} ({len(names):>2})  {shown}")
+        out.append("")
+        for state in STATE_ORDER:
+            out.append(f"  {state:12} {LEGEND[state]}")
+        if grouped.get(AD_HOC):
+            out.append("")
+            out.append(
+                "  Schools marked ad-hoc are ranked below on the calls they have, but no "
+                "mandate\n  scanned here staffs them, so those numbers will not grow. Do not "
+                "read them\n  against a scored school."
+            )
+        if grouped.get(UNSTAFFED) or grouped.get("blocked"):
+            out.append("")
+            out.append(
+                "  A school with no calls has no row in the table below. Absence here is not "
+                "a poor\n  result — it is no result. Note the ledger holds only what was "
+                "ingested: a school run\n  ad-hoc whose record never went through "
+                "`aihf-ledger ingest` reads as unstaffed here."
+            )
+        return "\n".join(out)
 
     def to_json(self) -> str:
         return json.dumps(
@@ -88,10 +162,27 @@ class Scorecard:
 
 
 def scorecard(
-    ledger: Ledger, data_client: DataClient, today: str, horizons: tuple[int, ...] = HORIZONS, min_calls: int = 20
+    ledger: Ledger,
+    data_client: DataClient,
+    today: str,
+    horizons: tuple[int, ...] = HORIZONS,
+    min_calls: int = 20,
+    staffed: set[str] | None = None,
 ) -> Scorecard:
+    """Score every school in the roster, not only those with calls.
+
+    *staffed* is the set of school names some running mandate staffs, from
+    ledger.coverage.staffed_schools(). It decides provisional vs ad-hoc; the
+    ledger cannot, because a school in the rotation adds no rows between
+    filings. None means "unknown", which reports every school with calls as
+    ad-hoc rather than inventing a rotation.
+    """
     rows = ledger.rows()
-    schools = sorted({r["school"] for r in rows})
+    staffed = staffed or set()
+    with_calls = {r["school"] for r in rows}
+    # The roster, plus anything in the ledger the roster has since dropped —
+    # a renamed or retired school must not vanish from its own history.
+    schools = sorted(set(SCHOOLS) | with_calls)
     neutral_share = {s: _share([r for r in rows if r["school"] == s]) for s in schools}
 
     # Forward closes per (ticker, event_date), fetched once per pair.
@@ -179,15 +270,34 @@ def scorecard(
     out: list[ScoreRow] = []
     for school in schools:
         anchor = summary(school, STATUS_HORIZON) if STATUS_HORIZON in horizons else None
+        coverage = classify(
+            school,
+            n_at_anchor=anchor["n"] if anchor else 0,
+            has_calls=school in with_calls,
+            staffed=staffed,
+            min_calls=min_calls,
+        )
         for h in horizons:
             s = summary(school, h)
-            if s["n"] < min_calls or anchor is None or anchor["n"] < min_calls:
-                status = "provisional"
+            # A verdict is only offered when the sample earns one. Anything
+            # short of "scored" gets "-", so a thin sample cannot be read as
+            # a ranking just because a word appears in the column.
+            if coverage != SCORED or s["n"] < min_calls or anchor is None:
+                status = "-"
             elif anchor["mean_signed"] > 0 and anchor["hit_rate"] > 0.5:
                 status = "earned"
             else:
                 status = "probation"
-            out.append(ScoreRow(school=school, horizon=h, neutral_share=neutral_share[school], status=status, **s))
+            out.append(
+                ScoreRow(
+                    school=school,
+                    horizon=h,
+                    neutral_share=neutral_share[school],
+                    coverage=coverage,
+                    status=status,
+                    **s,
+                )
+            )
     return Scorecard(today=today, min_calls=min_calls, horizons=tuple(horizons), rows=out)
 
 

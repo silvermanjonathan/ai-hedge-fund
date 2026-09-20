@@ -121,17 +121,41 @@ def test_unpriced_rows_are_skipped(tmp_path):
     r = _row("a", "UP", "bullish", 80, 0)
     r["entry_close"] = None
     card = scorecard(_ledger(tmp_path, [r]), FakeData(), _today(40), horizons=(21,), min_calls=1)
-    assert _find(card, "a", 21).n == 0 and _find(card, "a", 21).status == "provisional"
+    row = _find(card, "a", 21)
+    # No priced rows -> nothing scored, so no verdict is offered. Coverage,
+    # not status, carries the reason (see ledger/coverage.py).
+    assert row.n == 0 and row.status == "-"
 
 
-def test_status_provisional_earned_probation(tmp_path):
+def test_status_earned_probation_and_coverage(tmp_path):
+    """status is the verdict and only exists when the sample earns one;
+    coverage says whether it does."""
     good = [_row("g", "UP", "bullish", 70, i, key=f"g{i}") for i in range(25)]
     bad = [_row("p", "UP", "bearish", 70, i, key=f"p{i}") for i in range(25)]
     few = [_row("f", "UP", "bullish", 70, i, key=f"f{i}") for i in range(5)]
-    card = scorecard(_ledger(tmp_path, good + bad + few), FakeData(), _today(120), horizons=(21, 63), min_calls=20)
+    card = scorecard(
+        _ledger(tmp_path, good + bad + few),
+        FakeData(),
+        _today(120),
+        horizons=(21, 63),
+        min_calls=20,
+        staffed={"g", "p", "f"},
+    )
     assert _find(card, "g", 63).status == "earned" and _find(card, "g", 21).status == "earned"
-    assert _find(card, "p", 63).status == "probation"
-    assert _find(card, "f", 63).status == "provisional" and _find(card, "f", 63).n == 5
+    assert _find(card, "g", 63).coverage == "scored"
+    assert _find(card, "p", 63).status == "probation" and _find(card, "p", 63).coverage == "scored"
+
+    # Five calls is a sample, not a result: staffed and accumulating, no verdict.
+    f = _find(card, "f", 63)
+    assert f.n == 5 and f.coverage == "provisional" and f.status == "-"
+
+
+def test_a_thin_unstaffed_sample_is_ad_hoc_not_provisional(tmp_path):
+    """The distinction the coverage column exists for: 'still accumulating'
+    versus 'a handful of one-off calls that will never grow'."""
+    few = [_row("f", "UP", "bullish", 70, i, key=f"f{i}") for i in range(5)]
+    card = scorecard(_ledger(tmp_path, few), FakeData(), _today(120), horizons=(63,), min_calls=20, staffed=set())
+    assert _find(card, "f", 63).coverage == "ad-hoc"
 
 
 def test_universe_relative_mean(tmp_path):
@@ -147,8 +171,15 @@ def test_universe_relative_mean(tmp_path):
 
 def test_render_and_json(tmp_path):
     card = scorecard(
-        _ledger(tmp_path, [_row("a", "UP", "bullish", 80, 0)]), FakeData(), _today(40), horizons=(21,), min_calls=20
+        _ledger(tmp_path, [_row("a", "UP", "bullish", 80, 0)]),
+        FakeData(),
+        _today(40),
+        horizons=(21,),
+        min_calls=20,
+        staffed={"a"},
     )
     text = card.render()
     assert "provisional" in text and "a " in text
-    assert json.loads(card.to_json())["rows"][0]["status"] == "provisional"
+    assert "Coverage —" in text  # the summary block naming every school
+    row = next(r for r in json.loads(card.to_json())["rows"] if r["school"] == "a")
+    assert row["status"] == "-" and row["coverage"] in ("ad-hoc", "provisional")

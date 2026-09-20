@@ -50,9 +50,13 @@ def test_ingest_scorecard_candidates(tmp_path, monkeypatch, capsys):
     assert "added=4 skipped=0 abstained=0" in out.out and "added=0 skipped=4" in out.out and "4 verdicts" in out.out
 
     out = _run(monkeypatch, capsys, ["--ledger", str(ledger), "scorecard", "--horizon", "63", "--today", "2026-09-16"])
-    assert out.out.count("provisional") == 4 and "|    0 |" in out.out  # nothing old enough to score
+    # Nothing is old enough to score, so no school carries a verdict and
+    # every one of them is accounted for by a coverage state instead.
+    assert "|    0 |" in out.out and "Coverage —" in out.out
     out = _run(monkeypatch, capsys, ["--ledger", str(ledger), "scorecard", "--json", "--today", "2026-09-16"])
-    assert all(r["status"] == "provisional" and r["n"] == 0 for r in json.loads(out.out)["rows"])
+    rows = json.loads(out.out)["rows"]
+    assert all(r["status"] == "-" for r in rows)
+    assert all(r["coverage"] for r in rows)
 
     out = _run(monkeypatch, capsys, ["--ledger", str(ledger), "candidates", "--today", "2026-09-16"])
     assert out.out.startswith("Candidates for review — not orders, not advice. Rules: min_schools=3")

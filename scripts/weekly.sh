@@ -47,7 +47,14 @@ run_desk resilience-check "$HOME_DIR/mandates/resilience-check.yaml" "$UNION"
 # 3. Ledger, candidates, scorecard.
 poetry run aihf-ledger ingest "$RECORDS/quality-desk-$DATE.json" "$RECORDS/value-desk-$DATE.json" "$RECORDS/resilience-check-$DATE.json"
 poetry run aihf-ledger candidates | tee "$HOME_DIR/logs/candidates-$DATE.txt"
-poetry run aihf-ledger scorecard --horizon 63
+# Scorecard. The three desks above are passed explicitly so coverage
+# reports "is this school accumulating calls" rather than "could some
+# mandate on disk run it" — without them every unrun mandate counts as
+# staffing and the ad-hoc schools are hidden among the provisional ones.
+poetry run aihf-ledger scorecard --horizon 63 \
+  --mandate "$HOME_DIR/mandates/quality-desk.yaml" \
+  --mandate "$HOME_DIR/mandates/value-desk.yaml" \
+  --mandate "$HOME_DIR/mandates/resilience-check.yaml"
 
 # 4. Cost summary from the INFO lines (Fable 5.1 list prices), else call counts.
 poetry run python - "$HOME_DIR/logs" "$DATE" <<'PY'
