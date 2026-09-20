@@ -193,13 +193,17 @@ def main() -> None:
     # Filter to labeled events only
     all_events = [e for e in all_events if e.eps_surprise is not None]
 
-    # NOTE: this script prints the per-event table only. It used to also call
-    # engine._aggregate(all_events, 10_000, 42) and discard the result — 10k
-    # bootstrap resamples computed every run and never read. The aggregate CAR
-    # and its confidence interval, which are the actual point of an event
-    # study, are produced by engine.run_event_study() and rendered nowhere
-    # here. Wiring up a summary section is an open item (see ARCHITECTURE.md
-    # Q2 on this package's future).
+    # NOTE: this script prints the per-event table only, and it gets there
+    # the long way round. engine.compute_car() already does all of this —
+    # per-ticker events, cross-sectional aggregation, t-tests, bootstrap CIs
+    # — and returns an EventStudyResult with .aggregates on it. This function
+    # instead drives the private _compute_ticker_events() itself, and until
+    # Sept 2026 also called the private _aggregate() and threw the result
+    # away: 10k bootstrap resamples computed every run and never read.
+    #
+    # So the library is finished and this demo CLI drifted away from it. The
+    # fix is to call compute_car() and render result.aggregates, not to
+    # rebuild the statistics here. See ARCHITECTURE.md Q2.
 
     # Clear progress line
     sys.stdout.write("\r" + " " * 60 + "\r")
