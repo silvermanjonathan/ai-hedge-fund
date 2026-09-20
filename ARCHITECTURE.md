@@ -183,7 +183,7 @@ flowchart TB
 | `signals/` | 1,809 | 18 LLM personas + `pead` quant model. Each persona is a name and a system prompt on `LLMAgent`. |
 | `data/` | 3,714 | `DataClient` protocol, `free` (EDGAR + yfinance) and `fd` sources, disk cache, XBRL parsing. |
 | `tui/` | 2,557 | Textual app + a Textual-free `shared.py` the CLI also imports. |
-| `ledger/` | 1,122 | Verdict ledger (append-only JSONL), scorecard, candidate playbook. |
+| `ledger/` | 1,400 | Verdict ledger (append-only JSONL), scorecard with per-school coverage states, candidate playbook. |
 | `llm/` | 1,129 | `LLMClient` protocol, Anthropic SDK client, LangChain fallback, prompt cache. |
 | `backtesting/` | 1,164 | `backtest_fund` (fund-level) and `BacktestEngine` (single-model alpha isolation — retained deliberately, not legacy). |
 | `event_study/` | 1,213 | Earnings CARs, market model, bootstrap CIs. **Library complete; requires `--data fd`; unwired on purpose.** Its `__main__` demo has drifted from it. |
@@ -192,6 +192,7 @@ flowchart TB
 | `fund/` | 396 | `FundSpec`/`Fund` — the mandate as data. |
 | `features/` | 341 | The point-in-time `FundamentalsSnapshot`. |
 | `portfolio/`, `risk/`, `brokers/` | 418 | The pure core plus the broker seam. |
+| `config/`, `roster.py` | 180 | Credentials (out of `tui/`) and the import-light school roster with blocked annotations. |
 | `validation/` | 5 | Dated placeholder for CPCV/PBO. Deferred until the ledger has ~20 scored calls per school (~Dec 2026). |
 
 ### Dependency graph health
@@ -439,19 +440,27 @@ Three decisions, each needing only a yes or no:
 Most of §11 as first written is now answered; the answers are in §12. What
 is still open:
 
-1. **Should `druckenmiller` be staffed?** See §12 — it is the only school of
-   18 with zero verdicts, so it can never earn or lose its seat. Awaiting a
-   decision.
-2. Should `python -m hedge_fund.backtesting` and `python -m
+1. Nine of eighteen schools are outside the weekly rotation (§12). Is that
+   intended, or should the rotation widen before the scorecard is read in
+   December? The scorecard now says which nine, so this is a decision
+   rather than an oversight — but it is still undecided.
+2. The four schools with ad-hoc prompt-cache entries (`buffett`, `graham`,
+   `lynch`, `munger`) have no ledger rows, because those runs were never
+   ingested. Ingest them, or let the ledger start from the weekly desks
+   only? Ingesting adds history the rotation will not extend.
+3. Should `python -m hedge_fund.backtesting` and `python -m
    hedge_fund.event_study` become documented console scripts, or stay
    private dev tools? Both are fd-only in practice today.
-3. Nine of eighteen schools are outside the weekly rotation (§12). Is that
-   intended, or should the rotation widen before the scorecard is read?
+4. When is the `PriceSource` swap worth doing? It is now on the critical
+   path for `druckenmiller` and two library strategies, not just a data
+   upgrade (§12).
 
 **Answered, for the record:** `validation/` is deferred with a date, not
 abandoned (~Dec 2026). `event_study/` is wanted and its library is
 complete; only its demo CLI drifted. `BacktestEngine` was retained
 deliberately. The persona hard-rules tail was verified across all 18.
+`druckenmiller` is neither staffed nor deleted — it is recorded as blocked
+on a price-action seam (§12).
 
 ---
 
@@ -507,17 +516,52 @@ anything until there is a track record. The scorecard reads `provisional`
 below 20 scored calls per school, and a call is not scored until its
 21/63/126-day horizon elapses. Revisit ~Dec 2026.
 
-### `druckenmiller` is inert, and nothing says so
+### `druckenmiller`: blocked on a dependency, not inert
 
-Of the 18 schools, `druckenmiller` is the **only one with zero cached
-verdicts**. A school no desk runs accumulates no scored calls, so it can
-never earn or lose its seat — it is neither in nor out, indefinitely.
+Of the 18 schools, `druckenmiller` is the **only one with zero verdicts**.
+A school no desk runs accumulates no scored calls, so it can never earn or
+lose its seat — it is neither in nor out, indefinitely.
 
-The cause is not the library. `druckenmiller` is staffed in two library
-strategies, `inflections` (with `lynch`) and `fundamental-ls`. Neither is
-used by any mandate. `all-schools.yaml` covers 13 schools and omits it.
+The cause is not the library. It is staffed in two library strategies,
+`inflections` (with `lynch`) and `fundamental-ls`. Neither is used by any
+mandate, and `all-schools.yaml` omits it.
 
-The weekly rotation runs 9 of 18:
+**Resolved (Sept 2026): recorded as blocked, staffed nowhere.** Both
+obvious options were rejected, and the reasoning is the useful part.
+
+Its framework is rate-of-change — is the trend inflecting, and does the
+multiple already say so. The point-in-time `FundamentalsSnapshot` carries
+no price series, only per-period P/E and market cap, so the second half of
+that question is unanswerable. Its own prompt concedes it: *"You have no
+macro or price-action data here — reason from the fundamentals' trajectory
+only, and don't pretend otherwise."*
+
+- **Not staffed.** Twenty calls from a lens missing half its inputs
+  produces a scorecard row that *looks* like evidence about the school and
+  is really evidence about the missing input. Worse than no row, because a
+  row invites comparison against schools that do have what they need.
+- **Not deleted.** The school becomes viable the moment a price-action
+  seam exists. Deleting it would throw away a persona, two library
+  strategies wired for it, and the reasoning above.
+
+It is now `BLOCKED` in `hedge_fund/roster.py`, which records what it waits
+on and which strategies are already wired for it, and the scorecard prints
+it every week as `blocked` — visible, explained, and not mistaken for a
+school that failed.
+
+**This makes the price seam more than a data-quality upgrade.** It is
+listed in the README as a possible swap — *"A Finviz Elite price export
+could replace yfinance behind the `PriceSource` seam in
+`hedge_fund/data/prices.py`"* — which reads as better bars for the same
+job. It is also the unblock for a school the desk is currently carrying
+inert, and for the `inflections` and `fundamental-ls` strategies, neither
+of which can be run honestly without it. Whoever scopes that work should
+know they are enabling a capability, not just improving a feed.
+
+### The wider pattern: nine of eighteen
+
+`druckenmiller` is the extreme case of something broader. The weekly
+rotation runs 9 of 18 schools:
 
 | Desk | Schools |
 |---|---|
@@ -525,33 +569,15 @@ The weekly rotation runs 9 of 18:
 | value-desk | `dreman`, `schloss`, `klarman`, `pabrai` |
 | resilience-check | `dalio_resilience` |
 
-`buffett`, `graham`, `lynch` and `munger` have verdicts only from ad-hoc
-runs; `chanos`, `damodaran`, `earnings_quality_skeptic` and `greenblatt`
-have one or two each. So `druckenmiller` is the extreme of a wider pattern:
-the scorecard will rank the nine schools that run weekly and stay silent
-about the rest.
+`buffett`, `graham`, `lynch` and `munger` have prompt-cache entries from
+ad-hoc runs, but those records were never `aihf-ledger ingest`ed, so the
+ledger holds nothing for them — 100 rows, all from the nine above.
+`chanos`, `damodaran`, `earnings_quality_skeptic` and `greenblatt` are in
+`all-schools.yaml`, which no schedule runs.
 
-**Assessment.** Its framework is rate-of-change — acceleration or
-deceleration across recent quarters, what the multiple implies, asymmetry.
-That is genuinely orthogonal to the rotation, which is all quality and
-value plus one resilience lens, so it would add information rather than
-another correlated vote.
-
-Two caveats. First, it runs at reduced capability by design: "what's priced
-in" wants price action, and the snapshot carries only per-period P/E and
-market cap. Its own prompt concedes this — *"You have no macro or
-price-action data here."* Second, staffing it starts its horizon clock now,
-so it will read `provisional` until roughly 20 calls and one 63-day horizon
-have passed.
-
-**Recommendation:** staff it, mirroring the `resilience-check` pattern — a
-fourth desk running the existing `inflections` strategy (`druckenmiller` +
-`lynch`) over the union of both universes at low effort. That reuses a
-library strategy rather than inventing one, costs two schools over ~15-20
-names, and is almost entirely cache hits after the first week. It also
-brings `lynch` into the rotation.
-
-The alternative is to decide the inflection lens is not one this desk will
-ever allocate to, and delete it from the registry so the scorecard is not
-quietly missing a row. Either is defensible; leaving it staffed nowhere and
-unmentioned is the only option that is not.
+Left alone, the scorecard would have ranked nine schools in December and
+stayed silent about nine others. It no longer can: every roster school
+appears with an explicit coverage state (`hedge_fund/ledger/coverage.py`),
+so an absent school reads as *no result* rather than a poor one. Widening
+the rotation is still an open decision (§11), but it can no longer be made
+by accident.
