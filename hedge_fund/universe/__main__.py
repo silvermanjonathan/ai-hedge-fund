@@ -61,7 +61,7 @@ def main() -> None:
             sys.exit(f"aihf-universe: {exc} (or pass --no-edgar-check)")
 
     print(
-        f"aihf-universe: {preset or 'custom filters'} -> {len(screened)} screened, {len(tickers)} kept, {len(dropped)} dropped",
+        f"aihf-universe: {preset or 'custom filters'} -> {len(screened)} screened, {len(tickers)} kept, {len(dropped)} dropped",  # noqa: E501
         file=sys.stderr,
     )
     for ticker, reason in dropped:

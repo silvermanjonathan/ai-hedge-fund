@@ -8,7 +8,6 @@ rich renderables (which Textual Statics render natively).
 
 from __future__ import annotations
 
-import json
 from datetime import date as _date
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _version

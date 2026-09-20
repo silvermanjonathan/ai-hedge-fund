@@ -150,7 +150,7 @@ def test_candidates_sorted_and_header_exact(tmp_path):
     text = render_candidates(cands, CFG)
     assert (
         text.splitlines()[0]
-        == "Candidates for review — not orders, not advice. Rules: min_schools=3, min_conf=55, follow=dreman, follow_conf=65, warning_conf=60."
+        == "Candidates for review — not orders, not advice. Rules: min_schools=3, min_conf=55, follow=dreman, follow_conf=65, warning_conf=60."  # noqa: E501
     )
     assert HEADER.startswith("Candidates for review — not orders, not advice. Rules: ")
     out = write_candidates_csv(cands, tmp_path / "c.csv")

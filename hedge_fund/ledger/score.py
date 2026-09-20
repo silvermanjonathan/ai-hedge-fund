@@ -58,7 +58,7 @@ class Scorecard:
     rows: list[ScoreRow]
 
     def render(self) -> str:
-        head = f"{'school':26}| {'h':>4} | {'n':>4} | {'hit':>6} | {'mean vs SPY':>18} | {'vs universe':>12} | {'neutral':>8} | status"
+        head = f"{'school':26}| {'h':>4} | {'n':>4} | {'hit':>6} | {'mean vs SPY':>18} | {'vs universe':>12} | {'neutral':>8} | status"  # noqa: E501
         lines = [
             f"Scorecard as of {self.today} (min_calls={self.min_calls}; excess over SPY, signed by the call)",
             head,
@@ -71,7 +71,7 @@ class Scorecard:
                 else f"{r.mean_signed:+.2%}" + ("" if r.stderr is None else f" ± {r.stderr:.2%}")
             )
             lines.append(
-                f"{r.school:26}| {r.horizon:>4} | {r.n:>4} | {_pct(r.hit_rate):>6} | {mean:>18} | {_pct(r.mean_vs_universe, signed=True):>12} | {_pct(r.neutral_share):>8} | {r.status}"
+                f"{r.school:26}| {r.horizon:>4} | {r.n:>4} | {_pct(r.hit_rate):>6} | {mean:>18} | {_pct(r.mean_vs_universe, signed=True):>12} | {_pct(r.neutral_share):>8} | {r.status}"  # noqa: E501
             )
         return "\n".join(lines)
 

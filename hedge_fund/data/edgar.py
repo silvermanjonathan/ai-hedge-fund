@@ -332,7 +332,7 @@ class EdgarClient:
                     continue
                 hint = ""
                 if resp.status_code == 403:
-                    hint = f" — a 403 from the SEC usually means a missing or unusual User-Agent ({SEC_USER_AGENT_ENV}) or too many requests; the IP recovers after ~10 minutes under the limit"
+                    hint = f" — a 403 from the SEC usually means a missing or unusual User-Agent ({SEC_USER_AGENT_ENV}) or too many requests; the IP recovers after ~10 minutes under the limit"  # noqa: E501
                 raise EdgarError(
                     f"GET {url} returned {resp.status_code} after {len(_RETRY_DELAYS)} retries{hint}",
                     status_code=resp.status_code,
@@ -354,10 +354,10 @@ class EdgarClient:
 # ---------------------------------------------------------------------------
 
 _SUCCESSION_FORMS = ("8-K12B", "8-K12G3")
-_CORPORATE_SUFFIX = r"(?:Corporation|Corp\.?|Incorporated|Inc\.?|Company|Co\.?|Limited|Ltd\.?|LLC|L\.L\.C\.|L\.P\.|LP|plc|PLC|N\.V\.|S\.A\.|Holdings|Group|Trust)"
+_CORPORATE_SUFFIX = r"(?:Corporation|Corp\.?|Incorporated|Inc\.?|Company|Co\.?|Limited|Ltd\.?|LLC|L\.L\.C\.|L\.P\.|LP|plc|PLC|N\.V\.|S\.A\.|Holdings|Group|Trust)"  # noqa: E501
 _LEGAL_NAME_RE = re.compile(r"((?:[A-Z][\w&.'\-]*\s+){0,6}" + _CORPORATE_SUFFIX + r")(?![\w.])")
 _SUCCESSOR_RE = re.compile(
-    r"successor\s+(?:registrant|issuer)\s+(?:of|to)(?:\s+the)?\s+([A-Z][\w&.'\-]*(?:\s+[A-Z&][\w&.'\-]*)*)(?=[’']s\b|,|\.|\s+pursuant|\s+under|\s+common|\s+in\b|\s+for\b|\s*\()"
+    r"successor\s+(?:registrant|issuer)\s+(?:of|to)(?:\s+the)?\s+([A-Z][\w&.'\-]*(?:\s+[A-Z&][\w&.'\-]*)*)(?=[’']s\b|,|\.|\s+pursuant|\s+under|\s+common|\s+in\b|\s+for\b|\s*\()"  # noqa: E501
 )
 _NAME_WORDS = {"CORPORATION": "CORP", "INCORPORATED": "INC", "COMPANY": "CO", "LIMITED": "LTD", "THE": ""}
 

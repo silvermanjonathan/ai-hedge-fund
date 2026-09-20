@@ -102,5 +102,5 @@ def test_earnings_history(fd: FDClient, ticker: str) -> None:
     print(f"  {ticker} earnings history: {len(records)} records")
     for r in records:
         print(
-            f"    {r.report_period}  {r.source_type:5s}  {r.filing_date}  q={'yes' if r.quarterly else 'no'}  a={'yes' if r.annual else 'no'}"
+            f"    {r.report_period}  {r.source_type:5s}  {r.filing_date}  q={'yes' if r.quarterly else 'no'}  a={'yes' if r.annual else 'no'}"  # noqa: E501
         )

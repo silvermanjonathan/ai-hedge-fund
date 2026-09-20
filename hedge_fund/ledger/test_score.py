@@ -135,7 +135,8 @@ def test_status_provisional_earned_probation(tmp_path):
 
 
 def test_universe_relative_mean(tmp_path):
-    # Same school, desk, day: UP (bullish) and FLAT (neutral). Universe mean = (r_UP + 0) / 2, so UP beats it by r_UP / 2.
+    # Same school, desk, day: UP (bullish) and FLAT (neutral).
+    # Universe mean = (r_UP + 0) / 2, so UP beats it by r_UP / 2.
     rows = [_row("a", "UP", "bullish", 80, 0), _row("a", "FLAT", "neutral", 50, 0)]
     card = scorecard(_ledger(tmp_path, rows), FakeData(), _today(40), horizons=(21,), min_calls=1)
     a = _find(card, "a", 21)

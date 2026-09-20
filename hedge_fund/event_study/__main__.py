@@ -9,7 +9,6 @@ import sys
 import time
 
 from hedge_fund.data import make_data_client, unsupported_model_names
-from hedge_fund.event_study import compute_car
 
 TICKERS = [
     # Tech (21)
@@ -194,10 +193,13 @@ def main() -> None:
     # Filter to labeled events only
     all_events = [e for e in all_events if e.eps_surprise is not None]
 
-    # Aggregate
-    from hedge_fund.event_study.engine import _aggregate
-
-    aggregates = _aggregate(all_events, 10_000, 42)
+    # NOTE: this script prints the per-event table only. It used to also call
+    # engine._aggregate(all_events, 10_000, 42) and discard the result — 10k
+    # bootstrap resamples computed every run and never read. The aggregate CAR
+    # and its confidence interval, which are the actual point of an event
+    # study, are produced by engine.run_event_study() and rendered nowhere
+    # here. Wiring up a summary section is an open item (see ARCHITECTURE.md
+    # Q2 on this package's future).
 
     # Clear progress line
     sys.stdout.write("\r" + " " * 60 + "\r")
@@ -207,7 +209,7 @@ def main() -> None:
     print()
 
     print(
-        f"  {'Ticker':<6} {'Date':<12} {'Type':<6} {'EPS':<4}  {'CAR[0,1]':>8} {'CAR[0,5]':>8} {'CAR[0,20]':>8}   {'Beta':>5} {'R2':>5}"
+        f"  {'Ticker':<6} {'Date':<12} {'Type':<6} {'EPS':<4}  {'CAR[0,1]':>8} {'CAR[0,5]':>8} {'CAR[0,20]':>8}   {'Beta':>5} {'R2':>5}"  # noqa: E501
     )
     print(f"  {'-' * 78}")
 

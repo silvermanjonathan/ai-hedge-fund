@@ -133,7 +133,7 @@ def token(explicit: str | None = None) -> str:
     value = (explicit or os.environ.get(FINVIZ_TOKEN_ENV, "")).strip()
     if not value:
         raise FinvizError(
-            f"{FINVIZ_TOKEN_ENV} is not set. It is the auth= value Finviz Elite appends to Screener export URLs; export it or add it to ~/.hedge-fund/.env."
+            f"{FINVIZ_TOKEN_ENV} is not set. It is the auth= value Finviz Elite appends to Screener export URLs; export it or add it to ~/.hedge-fund/.env."  # noqa: E501
         )
     return value
 
