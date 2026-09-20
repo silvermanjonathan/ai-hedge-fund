@@ -45,6 +45,10 @@ run_desk value-desk      "$HOME_DIR/mandates/value-desk.yaml"       "$VALUE"
 run_desk resilience-check "$HOME_DIR/mandates/resilience-check.yaml" "$UNION"
 
 # 3. Ledger, candidates, scorecard.
+# Each run above already logged its own verdicts inline. This ingest is
+# deliberate belt-and-braces for an unattended job: it is idempotent
+# (keyed on school/ticker/snapshot_hash) so it normally reports
+# added=0, and it catches up if inline logging ever fails.
 poetry run aihf-ledger ingest "$RECORDS/quality-desk-$DATE.json" "$RECORDS/value-desk-$DATE.json" "$RECORDS/resilience-check-$DATE.json"
 poetry run aihf-ledger candidates | tee "$HOME_DIR/logs/candidates-$DATE.txt"
 # Scorecard. The three desks above are passed explicitly so coverage

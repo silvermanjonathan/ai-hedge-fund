@@ -50,7 +50,19 @@ logger = logging.getLogger(__name__)
 
 HORIZONS = (21, 63, 126)
 STATUS_HORIZON = 63
-_CALENDAR_STRETCH = 1.6  # calendar days per trading day, with slack
+# Horizons are counted in REAL trading days: forward_closes() keeps the bars
+# the market actually printed and the scorer waits for len(closes) >= h, so
+# holidays and half-days need no modelling and no market-calendar
+# dependency. These two constants only size the price FETCH window.
+#
+# The pad is constant rather than proportional because holidays are roughly
+# constant per window, not per trading day. At the old flat 1.6 multiplier
+# the 21-day horizon had about two trading days of margin, and a window
+# spanning Thanksgiving, Christmas and New Year can eat that — leaving
+# fewer than 21 bars, which makes the verdict silently unscorable rather
+# than raising. ~13 trading days of margin at every horizon now.
+_CALENDAR_STRETCH = 1.5  # calendar days per trading day (252/365 ~ 1.45)
+_CALENDAR_PAD = 14  # absorbs any holiday cluster in the window
 
 
 @dataclass
@@ -193,7 +205,8 @@ def scorecard(
         key = (ticker, event_date)
         if key not in bars_cache:
             start = date.fromisoformat(event_date)
-            end = min(start + timedelta(days=math.ceil(max_h * _CALENDAR_STRETCH)), date.fromisoformat(today))
+            span = math.ceil(max_h * _CALENDAR_STRETCH) + _CALENDAR_PAD
+            end = min(start + timedelta(days=span), date.fromisoformat(today))
             try:
                 bars = data_client.get_prices(ticker, start.isoformat(), end.isoformat())
             except Exception as exc:

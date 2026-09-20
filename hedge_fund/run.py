@@ -45,7 +45,7 @@ from hedge_fund.data import (
     unsupported_model_names,
 )
 from hedge_fund.fund import Fund, load_spec, normalize_universe
-from hedge_fund.paths import ensure_mandates_dir
+from hedge_fund.paths import ensure_mandates_dir, RECORDS_DIR
 from hedge_fund.pipeline import run_cycle
 
 
@@ -115,7 +115,17 @@ def main() -> None:
         "a cached answer has gone stale (raw EDGAR and Yahoo payloads within their "
         "TTL are still reused); also honoured as HEDGE_FUND_DATA_REFRESH=1",
     )
-    parser.add_argument("--out", help="also write the record JSON to this file")
+    parser.add_argument(
+        "--out",
+        help=f"write an EXTRA copy of the record here. Every live cycle is "
+        f"already saved to {RECORDS_DIR}/ whether or not this is passed",
+    )
+    parser.add_argument(
+        "--no-ledger",
+        action="store_true",
+        help="do not log this cycle's verdicts to the ledger. The record is "
+        "still written, so `aihf-ledger ingest` can pick it up later",
+    )
     args = parser.parse_args()
 
     if args.model:
@@ -196,8 +206,19 @@ def main() -> None:
             record = run_cycle(fund, args.date, broker, fd, universe)
 
     print(record.model_dump_json(indent=2))
+
+    # The record is the only durable trace of a cycle, and it is the ledger's
+    # input. It is written unconditionally: --out is an extra copy, not the
+    # thing that decides whether the run is remembered.
+    payload = record.model_dump_json(indent=2)
+    RECORDS_DIR.mkdir(parents=True, exist_ok=True)
+    # Same naming the TUI uses, so its history pane lists CLI runs too.
+    receipt = RECORDS_DIR / f"{spec.name}-run-{record.as_of}.json"
+    receipt.write_text(payload)
     if args.out:
-        Path(args.out).write_text(record.model_dump_json(indent=2))
+        Path(args.out).write_text(payload)
+
+    _log_verdicts(record, receipt, args, console)
 
     for sr in record.strategies:
         abstained = sum(1 for s in sr.signals if s.metadata.get("abstained") is True)
@@ -213,6 +234,40 @@ def main() -> None:
     )
     if record.skipped:
         console.print(f"[dim]skipped: {', '.join(s.ticker for s in record.skipped)}[/]")
+
+
+def _log_verdicts(record, receipt: Path, args, console: Console) -> None:
+    """Log this cycle's verdicts to the ledger, unless it would be lookahead.
+
+    Only live cycles are logged. A cycle run with a PAST --date is a manual
+    backtest of one: its forward returns are already settled, so logging it
+    would put a verdict into the scorecard whose outcome was known when it
+    was written. That is the same contamination the backtest path is kept
+    out of the ledger to avoid, and the scorecard cannot detect it — it
+    reads event_date and nothing else.
+
+    Skipping still leaves the record on disk, so a deliberate backfill
+    remains one `aihf-ledger ingest` away. Ingest is idempotent, keyed on
+    (school, ticker, snapshot_hash), so re-running costs nothing.
+    """
+    if args.no_ledger:
+        console.print(f"[dim]ledger: skipped (--no-ledger); record at {receipt}[/]")
+        return
+    if args.date != _date.today().isoformat():
+        console.print(
+            f"[dim]ledger: skipped — --date {args.date} is not today, and a verdict "
+            f"whose forward return is already settled would corrupt the scorecard. "
+            f"Record at {receipt}; ingest it deliberately if you meant to.[/]"
+        )
+        return
+    try:
+        from hedge_fund.ledger import Ledger
+
+        with open_data_client() as fd:
+            result = Ledger().ingest(receipt, fd)
+        console.print(f"[dim]ledger: {result}[/]")
+    except Exception as exc:  # a reporting side-effect must never fail the run
+        console.print(f"[yellow]ledger: could not log this cycle ({exc}); record at {receipt}[/]")
 
 
 if __name__ == "__main__":

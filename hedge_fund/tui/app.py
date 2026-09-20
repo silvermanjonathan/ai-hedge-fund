@@ -107,6 +107,7 @@ from hedge_fund.tui.shared import (
     FUNDS_DIR,
     is_supported,
     load_api_models,
+    RECORDS_DIR,
     STRATEGY_DIR,
     UNIVERSE_PRESETS,
     VERSION,
@@ -501,7 +502,7 @@ class FundSelectScreen(Screen):
         instant."""
         out: list[dict] = []
         for pattern in (f"{name}-run-*.json", f"{name}-backtest*.json"):
-            for p in FUNDS_DIR.glob(pattern):
+            for p in RECORDS_DIR.glob(pattern):
                 mtime = p.stat().st_mtime
                 key = (str(p), mtime)
                 if key not in self._summaries:
@@ -632,7 +633,7 @@ def _summarize(path: Path, mtime: float) -> dict | None:
 
 def _receipts(name: str) -> list[Path]:
     """Every saved receipt for a fund — runs and backtests — newest first."""
-    paths = [*FUNDS_DIR.glob(f"{name}-run-*.json"), *FUNDS_DIR.glob(f"{name}-backtest*.json")]
+    paths = [*RECORDS_DIR.glob(f"{name}-run-*.json"), *RECORDS_DIR.glob(f"{name}-backtest*.json")]
     return sorted(paths, key=lambda p: p.stat().st_mtime, reverse=True)
 
 
@@ -650,7 +651,7 @@ def _last_score(name: str) -> tuple[float, float, str] | None:
     """The fund's most recent BACKTEST result, if any: (total return, excess
     return, benchmark). A quiet scoreboard on each slot — runs have no return
     to show, only a NAV."""
-    files = list(FUNDS_DIR.glob(f"{name}-backtest*.json"))
+    files = list(RECORDS_DIR.glob(f"{name}-backtest*.json"))
     if not files:
         return None
     newest = max(files, key=lambda p: p.stat().st_mtime)
@@ -1292,9 +1293,9 @@ class RunScreen(Screen):
 
             # Receipts, same shape as a backtest's: the run is recoverable,
             # and it's what the fund's history pane reads.
-            FUNDS_DIR.mkdir(exist_ok=True)
+            RECORDS_DIR.mkdir(parents=True, exist_ok=True)
             stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-            path = FUNDS_DIR / f"{spec.name}-run-{stamp}.json"
+            path = RECORDS_DIR / f"{spec.name}-run-{stamp}.json"
             path.write_text(record.model_dump_json(indent=2))
             app.call_from_thread(self._show_report, record, path)
         except Exception as exc:  # fail loud, in the UI
@@ -1816,9 +1817,9 @@ class BacktestScreen(Screen):
             with open_data_client() as fd:
                 result = backtest_fund(fund, start, end, fd, universe, on_cycle=tick)
 
-            FUNDS_DIR.mkdir(exist_ok=True)
+            RECORDS_DIR.mkdir(parents=True, exist_ok=True)
             stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-            path = FUNDS_DIR / f"{spec.name}-backtest-{stamp}.json"
+            path = RECORDS_DIR / f"{spec.name}-backtest-{stamp}.json"
             path.write_text(result.model_dump_json(indent=2))
             app.call_from_thread(self._finish, result, path)
         except Exception as exc:  # fail loud, in the UI

@@ -17,6 +17,11 @@ from pathlib import Path
 USER_DIR = Path.home() / ".hedge-fund"
 MANDATES_DIR = USER_DIR / "mandates"
 CACHE_DIR = USER_DIR / "cache"
+# Every live cycle leaves its CycleRecord here, whether or not --out was
+# asked for. It is the ledger's input and the only durable trace of a run:
+# before Sept 2026 the CLI printed the record to stdout and dropped it
+# unless --out was passed, which lost 101 paid LLM verdicts.
+RECORDS_DIR = USER_DIR / "records"
 ENV_PATH = USER_DIR / ".env"
 
 # The example mandate ships inside the package; it is copied out (never read

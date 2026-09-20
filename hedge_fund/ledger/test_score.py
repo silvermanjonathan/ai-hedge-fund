@@ -183,3 +183,27 @@ def test_render_and_json(tmp_path):
     assert "Coverage —" in text  # the summary block naming every school
     row = next(r for r in json.loads(card.to_json())["rows"] if r["school"] == "a")
     assert row["status"] == "-" and row["coverage"] in ("ad-hoc", "provisional")
+
+
+def test_price_fetch_window_clears_every_horizon_with_holiday_slack():
+    """The only calendar approximation in the scorer.
+
+    Horizons themselves are counted in real bars, so holidays need no
+    modelling. But the fetch window is calendar-sized, and if it is too
+    short the scorer simply finds fewer than h bars and drops the verdict —
+    silently unscorable, not an error. A US year has 9-10 market holidays;
+    a 21-day horizon over the year-end can meet three at once.
+    """
+    import math
+
+    from hedge_fund.ledger.score import _CALENDAR_PAD, _CALENDAR_STRETCH, HORIZONS
+
+    for h in HORIZONS:
+        window = math.ceil(h * _CALENDAR_STRETCH) + _CALENDAR_PAD
+        needed = h * 365.25 / 252  # calendar days a horizon really spans
+        slack_trading_days = (window - needed) / (365.25 / 252)
+        assert slack_trading_days >= 10, (
+            f"h={h}: only {slack_trading_days:.1f} trading days of slack in a "
+            f"{window}-day fetch window; a holiday cluster would make verdicts "
+            "at this horizon silently unscorable"
+        )

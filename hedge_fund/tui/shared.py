@@ -32,6 +32,11 @@ except PackageNotFoundError:  # running from source without an install
 # Strategy libraries live in hedge_fund/strategies/ (code, inside the package).
 # Mandates the app writes are user data and live in ~/.hedge-fund/ (see paths.py).
 STRATEGY_DIR = Path(__file__).resolve().parent.parent / "strategies"
+# Mandates and receipts are different things and now live apart. FUNDS_DIR
+# was an alias for MANDATES_DIR, so every run receipt landed among the
+# mandate YAMLs — workable, never decided. Receipts go to RECORDS_DIR, the
+# same place the CLI writes them and `aihf-ledger ingest` reads them, so all
+# three live paths leave their trace in one place.
 FUNDS_DIR = MANDATES_DIR
 
 UNIVERSE_PRESETS = ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA", "JPM", "UNH", "XOM"]
