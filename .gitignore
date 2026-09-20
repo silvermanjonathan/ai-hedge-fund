@@ -41,18 +41,24 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# graph
-*.png
+# Scratch output in the REPO ROOT only — a chart saved while experimenting
+# (event_study/plot.py hands back a figure; the caller saves it), a scratch
+# note, an exported paper.
+#
+# These are deliberately root-anchored with a leading slash. They used to be
+# repo-wide `*.png`, `*.txt`, `*.pdf`, which silently swallowed
+# hedge_fund/features/snapshot_render_golden.txt: the golden-prompt test
+# passed locally, because the file was on disk, and would have failed on a
+# fresh clone. A blanket extension rule in a package that ships data files
+# eats test fixtures, docs images, and requirements.txt without a word.
+# Keep new ignores anchored to a directory.
+/*.png
+/*.pdf
 
-# Txt files
-*.txt
-# ...except checked-in test fixtures. The golden prompt fixture MUST be
-# in the repo: without it the snapshot test passes locally (the file is
-# on disk) and fails on a fresh clone and in CI.
-!hedge_fund/**/*_golden.txt
-
-# PDF files
-*.pdf
+# No `*.txt` rule, deliberately. The only .txt this project emits is
+# ~/.hedge-fund/logs/candidates-<date>.txt, which is outside the repo, so a
+# rule here guarded nothing — while quietly eating the golden-prompt fixture
+# and standing ready to eat requirements.txt or a data file next.
 
 # Outputs
 outputs/
