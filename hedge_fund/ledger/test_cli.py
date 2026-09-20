@@ -49,14 +49,29 @@ def test_ingest_scorecard_candidates(tmp_path, monkeypatch, capsys):
     out = _run(monkeypatch, capsys, ["--ledger", str(ledger), "ingest", str(rec), str(rec)])
     assert "added=4 skipped=0 abstained=0" in out.out and "added=0 skipped=4" in out.out and "4 verdicts" in out.out
 
-    out = _run(monkeypatch, capsys, ["--ledger", str(ledger), "scorecard", "--horizon", "63", "--today", "2026-09-16"])
+    # An explicit --mandate keeps this hermetic. Without one the CLI falls
+    # back to ~/.hedge-fund/mandates/, so the outcome depended on whether the
+    # machine running the tests happened to have desks configured: it passed
+    # locally and failed on a clean CI runner, where nothing is staffed and
+    # the ranked table is therefore empty.
+    mandate = tmp_path / "desk.yaml"
+    mandate.write_text(
+        "name: desk\nstrategies:\n  - name: s\n    models:\n"
+        + "".join(f"      - name: {s}\n" for s in ("a", "b", "c", "d"))
+    )
+    score_args = ["--ledger", str(ledger), "scorecard", "--today", "2026-09-16", "--mandate", str(mandate)]
+
+    out = _run(monkeypatch, capsys, [*score_args, "--horizon", "63"])
     # Nothing is old enough to score, so no school carries a verdict and
-    # every one of them is accounted for by a coverage state instead.
+    # every one is accounted for by a coverage state instead.
     assert "|    0 |" in out.out and "Coverage —" in out.out
-    out = _run(monkeypatch, capsys, ["--ledger", str(ledger), "scorecard", "--json", "--today", "2026-09-16"])
+    assert "provisional" in out.out  # staffed by the mandate above, accumulating
+
+    out = _run(monkeypatch, capsys, [*score_args, "--json"])
     rows = json.loads(out.out)["rows"]
     assert all(r["status"] == "-" for r in rows)
     assert all(r["coverage"] for r in rows)
+    assert {"a", "b", "c", "d"} <= {r["school"] for r in rows}
 
     out = _run(monkeypatch, capsys, ["--ledger", str(ledger), "candidates", "--today", "2026-09-16"])
     assert out.out.startswith("Candidates for review — not orders, not advice. Rules: min_schools=3")
