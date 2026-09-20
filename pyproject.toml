@@ -14,6 +14,11 @@ packages = [
 exclude = [
     "hedge_fund/**/test_*.py",
     "hedge_fund/conftest.py",
+    # Dev-only: the golden prompt fixture and the script that regenerates it.
+    # regolden imports from test_snapshot.py, which is excluded above, so
+    # shipping it would install a module that cannot run.
+    "hedge_fund/**/*_golden.txt",
+    "hedge_fund/features/regolden.py",
 ]
 
 [tool.poetry.dependencies]

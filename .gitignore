@@ -46,6 +46,10 @@ Thumbs.db
 
 # Txt files
 *.txt
+# ...except checked-in test fixtures. The golden prompt fixture MUST be
+# in the repo: without it the snapshot test passes locally (the file is
+# on disk) and fails on a fresh clone and in CI.
+!hedge_fund/**/*_golden.txt
 
 # PDF files
 *.pdf
