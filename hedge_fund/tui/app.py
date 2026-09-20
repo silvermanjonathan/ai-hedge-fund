@@ -26,9 +26,7 @@ import time
 from concurrent.futures import as_completed, ThreadPoolExecutor
 from datetime import date as _date
 from datetime import datetime, timedelta
-from math import sqrt
 from pathlib import Path
-from statistics import mean, stdev
 
 import yaml
 from rich import box
@@ -55,8 +53,12 @@ from textual.widgets import (
 from textual.widgets.option_list import Option
 from textual.widgets.selection_list import Selection
 
-from hedge_fund.backtesting import backtest_fund, FundBacktestResult, rebalance_grid
-from hedge_fund.backtesting.fund import _PERIODS_PER_YEAR
+from hedge_fund.backtesting import (
+    backtest_fund,
+    FundBacktestResult,
+    rebalance_grid,
+    running_metrics,
+)
 from hedge_fund.brokers import Fill, SimBroker
 from hedge_fund.config import (
     apply_credentials,
@@ -1931,7 +1933,11 @@ class BacktestScreen(Screen):
 
     def _board_tick(self, record: CycleRecord) -> None:
         """One cycle landed: update the stat tiles, redraw the curve.
-        Same math as run.py `_BacktestBoard._render`."""
+
+        Sharpe and drawdown come from the engine's running_metrics, the same
+        function backtest_fund uses for the final record — so the tiles you
+        watch during a replay cannot drift from the numbers it reports.
+        """
         assert self._spec is not None
         self._dates.append(record.as_of)
         self._nav.append(record.nav)
@@ -1941,20 +1947,7 @@ class BacktestScreen(Screen):
         fund_return = nav / capital - 1
         benchmark_return = self._closes[self._dates[-1]] / self._closes[self._dates[0]] - 1
         curve = [capital] + self._nav
-        peak = curve[0]
-        max_dd = 0.0
-        for value in curve:
-            if value > peak:
-                peak = value
-            max_dd = max(max_dd, (peak - value) / peak)
-
-        # Running Sharpe, same math as the engine's final _metrics: per-cycle
-        # returns over the curve, sample stdev, annualized by cadence.
-        returns = [b / a - 1 for a, b in zip(curve, curve[1:])]
-        if len(returns) > 1 and stdev(returns) > 0:
-            sharpe = mean(returns) / stdev(returns) * sqrt(_PERIODS_PER_YEAR[self._spec.rebalance])
-        else:
-            sharpe = 0.0
+        sharpe, max_dd = running_metrics(capital, self._nav, self._spec.rebalance)
         self._update_stats(nav, fund_return, benchmark_return, fund_return - benchmark_return, sharpe, max_dd)
 
         benchmark_curve = [capital] + [capital * self._closes[d] / self._closes[self._dates[0]] for d in self._dates]

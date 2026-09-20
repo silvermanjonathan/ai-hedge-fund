@@ -1,8 +1,15 @@
 """backtest_fund tests — fake data client + fake analysts, real broker + pipeline."""
 
+import math
+
 import pytest
 
-from hedge_fund.backtesting.fund import backtest_fund, rebalance_grid
+from hedge_fund.backtesting.fund import (
+    _metrics,
+    backtest_fund,
+    rebalance_grid,
+    running_metrics,
+)
 from hedge_fund.data.models import Price
 from hedge_fund.fund.spec import Fund, FundSpec
 from hedge_fund.models import Signal
@@ -191,3 +198,96 @@ def test_grid_follows_mandate_cadence():
     result = _run(spec=spec)
     assert result.dates == ["2024-06-21"]  # one June rebalance
     assert result.rebalance == "monthly"
+
+
+# ---------------------------------------------------------------------------
+# running_metrics — one implementation, two callers
+# ---------------------------------------------------------------------------
+#
+# Sharpe and max drawdown were computed twice until Sept 2026: once in
+# _metrics with numpy for the final record, once in tui/app.py with
+# `statistics` for the live tiles. They agreed, but nothing held them
+# together, the TUI copy was untested, and the TUI reached across a package
+# boundary for the private _PERIODS_PER_YEAR to do it.
+#
+# These tests pin the formula and assert the two call sites cannot diverge.
+
+
+def test_running_metrics_constant_return_is_zero_sharpe_not_infinity():
+    """Zero dispersion must give 0.0, not a division by zero.
+
+    Doubling each period keeps the returns exactly 1.0 in binary floating
+    point. A "+10% every period" curve would NOT work here: 133.1 / 121 is
+    1.1000000000000001, and that last-bit dispersion produces a Sharpe in
+    the hundreds. Real curves always have dispersion, so this is a property
+    of the ratio rather than a bug — but it makes a near-constant series a
+    bad way to test the zero branch.
+    """
+    sharpe, max_dd = running_metrics(100.0, [200.0, 400.0, 800.0], "weekly")
+    assert sharpe == 0.0
+    assert max_dd == 0.0
+
+
+def test_running_metrics_matches_a_hand_computation():
+    capital, nav = 100.0, [110.0, 99.0, 118.8]
+    returns = [0.10, -0.10, 0.20]
+    mean_r = sum(returns) / 3
+    var = sum((r - mean_r) ** 2 for r in returns) / 2  # ddof=1
+    expected = mean_r / math.sqrt(var) * math.sqrt(52)
+
+    sharpe, max_dd = running_metrics(capital, nav, "weekly")
+    assert sharpe == pytest.approx(expected, rel=1e-9)
+    assert max_dd == pytest.approx((110.0 - 99.0) / 110.0, rel=1e-9)
+
+
+def test_running_metrics_annualizes_by_cadence():
+    capital, nav = 100.0, [110.0, 99.0, 118.8]
+    weekly, _ = running_metrics(capital, nav, "weekly")
+    daily, _ = running_metrics(capital, nav, "daily")
+    monthly, _ = running_metrics(capital, nav, "monthly")
+    assert daily == pytest.approx(weekly * math.sqrt(252 / 52), rel=1e-9)
+    assert monthly == pytest.approx(weekly * math.sqrt(12 / 52), rel=1e-9)
+
+
+def test_running_metrics_counts_the_first_period():
+    """Capital is prepended inside the function. A first-tick move must show
+    up in the drawdown, which it cannot if the opening value is dropped."""
+    sharpe, max_dd = running_metrics(100.0, [80.0, 80.0], "weekly")
+    assert max_dd == pytest.approx(0.20, rel=1e-9)
+
+
+@pytest.mark.parametrize("nav", [[], [100.0]])
+def test_running_metrics_degenerate_curves_are_zero_not_nan(nav):
+    """Under two periods there is no dispersion to divide by. The TUI calls
+    this after the FIRST cycle, so this path renders on every replay."""
+    sharpe, max_dd = running_metrics(100.0, nav, "weekly")
+    assert sharpe == 0.0
+    assert math.isfinite(max_dd)
+
+
+def test_live_tiles_and_final_record_cannot_diverge():
+    """The fitness function for F3.
+
+    The TUI calls running_metrics after each cycle with the NAV curve so
+    far; the engine calls it once at the end with the whole curve. Feeding
+    the engine's final curve through the incremental path must land on the
+    engine's own reported numbers, or the tiles lie at the end of a replay.
+    """
+    capital = 100_000.0
+    nav = [101_000.0, 99_500.0, 104_250.0, 98_900.0, 107_400.0]
+
+    # What the TUI shows after the last cycle.
+    live_sharpe, live_dd = running_metrics(capital, nav, "weekly")
+
+    # What _metrics puts on the record, through the real code path.
+    metrics = _metrics(
+        capital=capital,
+        grid=["2025-01-06", "2025-01-13", "2025-01-20", "2025-01-27", "2025-02-03"],
+        nav=nav,
+        benchmark_nav=[100_500.0, 100_200.0, 101_000.0, 100_800.0, 102_000.0],
+        cadence="weekly",
+        records=[],
+    )
+
+    assert live_sharpe == pytest.approx(metrics.sharpe_ratio, abs=5e-5)  # record rounds to 4dp
+    assert live_dd == pytest.approx(metrics.max_drawdown_pct, abs=5e-7)  # record rounds to 6dp

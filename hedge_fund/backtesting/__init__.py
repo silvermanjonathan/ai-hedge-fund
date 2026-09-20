@@ -7,6 +7,7 @@ from hedge_fund.backtesting.fund import (
     FundBacktestMetrics,
     FundBacktestResult,
     rebalance_grid,
+    running_metrics,
 )
 from hedge_fund.backtesting.models import BacktestResult, PerformanceMetrics, Trade
 
@@ -20,4 +21,5 @@ __all__ = [
     "Trade",
     "backtest_fund",
     "rebalance_grid",
+    "running_metrics",
 ]

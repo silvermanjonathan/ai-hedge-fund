@@ -161,6 +161,39 @@ def rebalance_grid(days: list[str], cadence: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+def running_metrics(capital: float, nav: list[float], cadence: str) -> tuple[float, float]:
+    """Annualized Sharpe and max drawdown for an equity curve.
+
+    The single implementation. The backtest engine calls it once at the end
+    for the authoritative numbers, and the TUI calls it after every cycle to
+    drive its live stat tiles — so what you watch during a replay and what
+    the record reports cannot disagree. They were two implementations until
+    Sept 2026, one numpy and one `statistics`, kept in step by hand.
+
+    *nav* is the curve AFTER each rebalance, without the opening capital.
+    Capital is prepended here so the first tick's move is counted; passing a
+    curve that already includes it would double the first period.
+
+    Sharpe is the mean per-period return over its sample standard deviation
+    (ddof=1), annualized by the mandate's rebalance cadence. Excess return
+    over a risk-free rate is deliberately not modeled. Fewer than two
+    periods, or a flat curve, gives 0.0 rather than an infinity.
+    """
+    curve = np.array([capital] + list(nav), dtype=float)
+    returns = curve[1:] / curve[:-1] - 1
+
+    sd = float(returns.std(ddof=1)) if len(returns) > 1 else 0.0
+    sharpe = float(returns.mean() / sd) * float(np.sqrt(_PERIODS_PER_YEAR[cadence])) if sd > 0 else 0.0
+
+    peak = curve[0]
+    max_dd = 0.0
+    for value in curve:
+        peak = max(peak, value)
+        max_dd = max(max_dd, (peak - value) / peak)
+
+    return sharpe, max_dd
+
+
 def _metrics(
     capital: float,
     grid: list[str],
@@ -175,23 +208,7 @@ def _metrics(
     years = max(calendar_days / 365.25, 0.01)
     annualized = (1 + total) ** (1 / years) - 1
 
-    # Per-period returns over the curve including the starting capital, so
-    # the first tick's move counts too.
-    curve = np.array([capital] + nav)
-    returns = curve[1:] / curve[:-1] - 1
-    if len(returns) > 1 and float(returns.std(ddof=1)) > 0:
-        sharpe = float(returns.mean() / returns.std(ddof=1)) * np.sqrt(_PERIODS_PER_YEAR[cadence])
-    else:
-        sharpe = 0.0
-
-    peak = curve[0]
-    max_dd = 0.0
-    for value in curve:
-        if value > peak:
-            peak = value
-        drawdown = (peak - value) / peak
-        if drawdown > max_dd:
-            max_dd = drawdown
+    sharpe, max_dd = running_metrics(capital, nav, cadence)
 
     benchmark_return = benchmark_nav[-1] / capital - 1
 
