@@ -722,6 +722,46 @@ is still open:
    fair test of klarman needs the value screen to carry more Financials
    than it does today.
 
+   ---
+
+   **RESULT (2026-09-21, after the re-seed). The prediction was wrong, and
+   the recorded failure condition did not occur.**
+
+   | | Predicted | Actual | Was |
+   |---|---|---:|---:|
+   | Financials, all schools | 5-10% | **8%** | 8% |
+   | non-Financials, all schools | 12-18% | **6%** | 12% |
+   | akre on Financials | falls | 0% | 17% |
+   | fundsmith on Financials | falls | 14% | 33% |
+   | klarman on Financials | stays 0% | **17%** | 0% |
+
+   Two of five held. The two that did not are the two that mattered.
+
+   Non-Financial `insufficient` **halved** where I predicted it would rise,
+   and klarman's non-Financial rate collapsed from 42% to 12%. The error
+   was a reasoning error, not a data one: I modelled the rendering change
+   in isolation and forgot the other half of the same commit. Cause A
+   recovered data for about a quarter of the names, so there were fewer
+   blanks left to be uncertain about — and klarman, which needs P/E, book
+   value and debt/equity, the three most-missing fields, gained the most.
+
+   klarman on Financials went 0% to 17%, the opposite of the failure
+   condition: it is now MORE willing to say it cannot judge a bank, which
+   is what the sector clause and `n/a` were for. The two rates have also
+   crossed — Financials were 4pp LESS likely to be flagged insufficient
+   than everything else and are now 2pp more, which is the direction the
+   change was aiming at.
+
+   Caveat on reading it as a win: six of nine schools see only 6-7
+   Financial names, so the per-school Financial figures stay thin. The
+   robust findings are the two aggregates and the klarman non-Financial
+   collapse, which rests on 17 names.
+
+   **This does not close §11.7.** The schools are no longer conspicuously
+   more confident about Financials, but whether they judge them WELL is a
+   forward-return question. The instrumentation stopped misreporting; that
+   says nothing yet about the judgments.
+
 9. **Should the scorer count a re-logged verdict twice?** Ledger identity
    moved to `(school, ticker, prompt_key)` in Sept 2026 so that a prompt
    change re-logs rather than being silently deduplicated. The consequence
