@@ -108,7 +108,9 @@ def test_request_carries_cache_breakpoint_schema_effort_and_no_budget():
     assert request["messages"] == [{"role": "user", "content": "snapshot"}]
     assert request["output_config"]["effort"] == "medium"
     assert request["output_config"]["format"] == {"type": "json_schema", "schema": output_schema()}
-    assert set(output_schema()["properties"]) == {"signal", "confidence", "reasoning"}
+    # basis separates a reasoned neutral from an unable-to-tell one; it
+    # defaults to "judged" so a provider that omits it still validates.
+    assert set(output_schema()["properties"]) == {"signal", "confidence", "basis", "reasoning"}
     assert request["thinking"] == {"type": "adaptive"}
     assert "budget_tokens" not in json.dumps(request)
     assert not messages.streamed  # no listener: a plain create

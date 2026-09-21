@@ -52,8 +52,22 @@ class AnalystVerdict(BaseModel):
     output. Lives here rather than in hedge_fund.signals so hedge_fund.llm
     can import it without an import cycle. A response is validated against
     it exactly once, in LLMAgent._parse.
+
+    `basis` separates two things that both arrive as "neutral" and mean
+    opposite things: a school that read the facts and declined the name,
+    and one that could not tell from what it was shown. Until Sept 2026 the
+    only way to distinguish them was pattern-matching the thesis text after
+    the fact, which measured 5% ignorance on a sample that will grow as the
+    universe widens and snapshots thin out. It defaults to "judged" so a
+    provider that omits the field still validates.
     """
 
     signal: Literal["bullish", "bearish", "neutral"]
     confidence: float = Field(ge=0, le=100, description="0-100")
+    basis: Literal["judged", "insufficient"] = Field(
+        default="judged",
+        description="'judged' when a view was formed from the facts shown, "
+        "including a neutral one; 'insufficient' when the facts could not "
+        "support a call either way",
+    )
     reasoning: str

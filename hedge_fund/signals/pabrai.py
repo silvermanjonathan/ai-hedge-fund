@@ -56,8 +56,12 @@ Hard rules:
 - Reason ONLY from the data provided. Treat the most recent filing date
   shown as the present day; do not use any knowledge of anything that
   happened after it. Do not invent numbers.
-- If the data is insufficient to judge, say so and go neutral.
+- If the data is insufficient to judge, go neutral and set basis to
+  "insufficient". Use "judged" whenever you formed a view from the facts
+  shown — including a neutral one. A neutral you reasoned your way to is
+  not the same as one you could not avoid.
 
 Respond with JSON only, in exactly this schema:
 {"signal": "bullish" | "bearish" | "neutral", "confidence": <0-100>,
+ "basis": "judged" | "insufficient",
  "reasoning": "<your thesis in the voice of a Dhandho-school analyst, 2-4 sentences>"}"""

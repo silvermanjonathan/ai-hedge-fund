@@ -11,6 +11,19 @@ set -euo pipefail
 REPO=${AIHF_REPO:-$(cd "$(dirname "$0")/.." && pwd)}
 HOME_DIR="$HOME/.hedge-fund"
 DATE=$(date +%F)
+# Ledger cutoff. Set AIHF_LEDGER_SINCE to the date of the first widened run
+# once the universe changes: verdicts from before it grade schools on names
+# they will never see again, against a bar built from a different screen.
+# Empty means "count everything", which is right until that first run.
+SINCE=${AIHF_LEDGER_SINCE:-}
+SINCE_ARG=()
+[ -n "$SINCE" ] && SINCE_ARG=(--since "$SINCE")
+
+# A spend ceiling for THIS script only — deliberately exported here rather
+# than set in ~/.hedge-fund/.env, which apply_credentials() loads into every
+# invocation. A manual seeding run must not inherit the weekly ceiling and
+# discover it as a refusal.
+export HEDGE_FUND_MAX_COST=${AIHF_WEEKLY_MAX_COST:-3.00}
 LOG="$HOME_DIR/logs/weekly-$DATE.log"
 RECORDS="$HOME_DIR/records"
 mkdir -p "$HOME_DIR/logs" "$RECORDS"
@@ -19,9 +32,19 @@ exec > >(tee -a "$LOG") 2>&1
 cd "$REPO"
 echo "== weekly $DATE =="
 
-# 1. Universes. A failed, empty, or throttled screen must never reach aihf.
-QUALITY=$(poetry run aihf-universe quality --limit 10)
-VALUE=$(poetry run aihf-universe value --limit 10)
+# 1. Universes — the WHOLE screen, no --limit.
+#
+# --limit 10 truncated an already-downloaded list in export order, which
+# Finviz returns alphabetically. The desk was evaluating the ten
+# alphabetically-first names that passed each screen and never seeing the
+# other 46 (quality) or 14 (value) — a permanent slice of A-F, not the ten
+# best by any criterion. Taking everything removes the need for a sort key
+# at all; HEDGE_FUND_MAX_COST above is the backstop if a preset ever starts
+# matching hundreds.
+#
+# A failed, empty, or throttled screen must never reach aihf.
+QUALITY=$(poetry run aihf-universe quality)
+VALUE=$(poetry run aihf-universe value)
 [ -n "$QUALITY" ] || { echo "quality universe is empty; stopping" >&2; exit 1; }
 [ -n "$VALUE" ] || { echo "value universe is empty; stopping" >&2; exit 1; }
 UNION=$( (tr ',' '\n' <<<"$QUALITY"; tr ',' '\n' <<<"$VALUE") | awk 'NF && !seen[$0]++' | paste -sd, -)
@@ -50,12 +73,12 @@ run_desk resilience-check "$HOME_DIR/mandates/resilience-check.yaml" "$UNION"
 # (keyed on school/ticker/snapshot_hash) so it normally reports
 # added=0, and it catches up if inline logging ever fails.
 poetry run aihf-ledger ingest "$RECORDS/quality-desk-$DATE.json" "$RECORDS/value-desk-$DATE.json" "$RECORDS/resilience-check-$DATE.json"
-poetry run aihf-ledger candidates | tee "$HOME_DIR/logs/candidates-$DATE.txt"
+poetry run aihf-ledger candidates "${SINCE_ARG[@]}" | tee "$HOME_DIR/logs/candidates-$DATE.txt"
 # Scorecard. The three desks above are passed explicitly so coverage
 # reports "is this school accumulating calls" rather than "could some
 # mandate on disk run it" — without them every unrun mandate counts as
 # staffing and the ad-hoc schools are hidden among the provisional ones.
-poetry run aihf-ledger scorecard --horizon 63 \
+poetry run aihf-ledger scorecard --horizon 63 "${SINCE_ARG[@]}" \
   --mandate "$HOME_DIR/mandates/quality-desk.yaml" \
   --mandate "$HOME_DIR/mandates/value-desk.yaml" \
   --mandate "$HOME_DIR/mandates/resilience-check.yaml"

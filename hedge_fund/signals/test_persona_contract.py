@@ -53,12 +53,13 @@ REQUIRED = {
     "do not fabricate figures": "Do not invent numbers",
     "answer as JSON only": "Respond with JSON only",
     "abstain on thin data": "If the data is insufficient to judge",
+    "distinguish declining from not knowing": '"basis": "judged" | "insufficient"',
 }
 
 # All 18 carry this verbatim. Asserting the exact sentence, not just the
 # idea, keeps it from drifting into eighteen paraphrases that are hard to
 # compare when a school's scorecard looks off.
-ABSTAIN_CLAUSE = "- If the data is insufficient to judge, say so and go neutral."
+ABSTAIN_CLAUSE = "- If the data is insufficient to judge, go neutral and set basis to"
 
 
 def prompt_for(name: str) -> str:
@@ -89,7 +90,7 @@ def test_persona_emits_the_verdict_schema(persona):
     """The three fields AnalystVerdict validates must be spelled out, or the
     model has to guess the shape and LLMAgent._parse abstains."""
     prompt = prompt_for(persona)
-    for field in ('"signal"', '"confidence"', '"reasoning"'):
+    for field in ('"signal"', '"confidence"', '"basis"', '"reasoning"'):
         assert field in prompt, f"{persona} never names {field} in its schema block"
     for verdict in ("bullish", "bearish", "neutral"):
         assert verdict in prompt, f"{persona} never offers {verdict!r} as a signal"

@@ -242,6 +242,7 @@ class LLMAgent(AlphaModel):
         return {
             "signal": verdict.signal,
             "confidence": verdict.confidence,
+            "basis": verdict.basis,
             "reasoning": verdict.reasoning,
         }
 
@@ -267,6 +268,8 @@ class LLMAgent(AlphaModel):
             metadata={
                 "signal": parsed["signal"],
                 "confidence": parsed["confidence"],
+                # Why a neutral is neutral: reasoned, or unable to tell.
+                "basis": parsed.get("basis", "judged"),
                 "model": self._llm.model,
                 "prompt_key": key,
                 "snapshot_hash": snapshot.content_hash,

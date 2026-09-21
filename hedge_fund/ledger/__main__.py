@@ -49,6 +49,14 @@ def main(argv: list[str] | None = None) -> None:
     p_score.add_argument("--today", default=date.today().isoformat(), help="score as of this date (default today)")
     p_score.add_argument("--json", action="store_true")
     p_score.add_argument(
+        "--since",
+        metavar="YYYY-MM-DD",
+        help="count only verdicts made on or after this date. Use it after a "
+        "universe change: older verdicts grade a school on names it will "
+        "never see again, against a bar built from a different screen. "
+        "Nothing is deleted; the rows stay as history.",
+    )
+    p_score.add_argument(
         "--mandate",
         action="append",
         metavar="PATH",
@@ -66,6 +74,14 @@ def main(argv: list[str] | None = None) -> None:
     p_cand.add_argument("--follow", default=PlaybookConfig.follow)
     p_cand.add_argument("--follow-conf", type=float, default=PlaybookConfig.follow_conf)
     p_cand.add_argument("--today", default=date.today().isoformat(), help="date stamp for the CSV (default today)")
+    p_cand.add_argument(
+        "--since",
+        metavar="YYYY-MM-DD",
+        help="consider only verdicts made on or after this date. This is the "
+        "output that gets acted on, so the cutoff matters more here than on "
+        "the scorecard: without it a name that has left the universe keeps "
+        "surfacing as a candidate on a verdict from a screen that is gone.",
+    )
     args = parser.parse_args(argv)
 
     ledger = Ledger(args.ledger)
@@ -83,7 +99,15 @@ def main(argv: list[str] | None = None) -> None:
         paths = mandate_paths(args.mandate)
         staffed = staffed_schools(paths)
         with open_data_client() as fd:
-            card = scorecard(ledger, fd, args.today, horizons=horizons, min_calls=args.min_calls, staffed=staffed)
+            card = scorecard(
+                ledger,
+                fd,
+                args.today,
+                horizons=horizons,
+                min_calls=args.min_calls,
+                staffed=staffed,
+                since=args.since,
+            )
         print(card.to_json() if args.json else card.render())
         if not args.json:
             where = ", ".join(p.name for p in paths) if paths else "none found"
@@ -94,7 +118,7 @@ def main(argv: list[str] | None = None) -> None:
         cfg = PlaybookConfig(
             min_schools=args.min_schools, min_conf=args.min_conf, follow=args.follow, follow_conf=args.follow_conf
         )
-        candidates = playbook(ledger.latest_per_ticker_school(), cfg)
+        candidates = playbook(ledger.latest_per_ticker_school(args.since), cfg)
         # Are the verdicts a quarter behind the filings? Ask EDGAR submissions.
         try:
             with EdgarClient() as edgar:

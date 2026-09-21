@@ -208,3 +208,77 @@ def test_unknown_staffing_reports_calls_as_ad_hoc(tmp_path):
     ledger = _ledger(tmp_path, [_row("akre")])
     card = scorecard(ledger, NoPrices(), "2025-06-01", horizons=(63,), staffed=None)
     assert next(r.coverage for r in card.rows if r.school == "akre") == AD_HOC
+
+
+# ---------------------------------------------------------------------------
+# --since: a universe change makes older verdicts incomparable
+# ---------------------------------------------------------------------------
+
+
+def _dated(school, ticker, event_date, signal="bullish", basis="judged"):
+    row = _row(school, ticker, signal)
+    row["key"] = f"{school}|{ticker}|{event_date}"
+    row["event_date"] = event_date
+    row["basis"] = basis
+    return row
+
+
+def test_since_excludes_verdicts_from_before_the_cutoff(tmp_path):
+    ledger = _ledger(tmp_path, [_dated("akre", "OLD", "2026-09-15"), _dated("akre", "NEW", "2026-11-02")])
+
+    card = scorecard(ledger, NoPrices(), "2026-12-01", horizons=(63,), staffed={"akre"}, since="2026-10-01")
+
+    assert len(ledger.rows()) == 2, "nothing is deleted; history stays"
+    assert len(ledger.rows("2026-10-01")) == 1
+    assert card.since == "2026-10-01"
+    assert "on or after 2026-10-01" in card.render()
+
+
+def test_since_moves_a_school_with_only_old_calls_to_unstaffed(tmp_path):
+    """Its verdicts grade a universe that no longer exists, so it reads as
+    no result rather than as a thin one."""
+    ledger = _ledger(tmp_path, [_dated("dreman", "OLD", "2026-09-15")])
+
+    before = scorecard(ledger, NoPrices(), "2026-12-01", horizons=(63,), staffed=set())
+    after = scorecard(ledger, NoPrices(), "2026-12-01", horizons=(63,), staffed=set(), since="2026-10-01")
+
+    assert next(r.coverage for r in before.rows if r.school == "dreman") == AD_HOC
+    assert next(r.coverage for r in after.rows if r.school == "dreman") == UNSTAFFED
+
+
+def test_since_reaches_the_candidates_playbook(tmp_path):
+    """The must-fix. The playbook is the output that gets acted on: without
+    the cutoff a name that has left the universe keeps surfacing as an entry
+    candidate on the strength of a verdict from a screen that is gone."""
+    ledger = _ledger(
+        tmp_path,
+        [_dated(s, "GONE", "2026-09-15") for s in ("akre", "fisher", "fundsmith")]
+        + [_dated(s, "CURRENT", "2026-11-02") for s in ("akre", "fisher", "fundsmith")],
+    )
+
+    assert {t for t, _ in ledger.latest_per_ticker_school()} == {"GONE", "CURRENT"}
+    assert {t for t, _ in ledger.latest_per_ticker_school("2026-10-01")} == {"CURRENT"}
+
+
+def test_the_scorecard_reports_how_much_neutrality_was_ignorance(tmp_path):
+    """basis splits "I declined this name" from "I could not tell", which
+    was previously only recoverable by pattern-matching thesis text."""
+    rows = [
+        _dated("akre", "A", "2026-11-02", signal="neutral", basis="judged"),
+        _dated("akre", "B", "2026-11-02", signal="neutral", basis="insufficient"),
+        _dated("akre", "C", "2026-11-02", signal="bullish", basis="judged"),
+    ]
+    card = scorecard(_ledger(tmp_path, rows), NoPrices(), "2026-12-01", horizons=(63,), staffed={"akre"})
+    row = next(r for r in card.rows if r.school == "akre")
+
+    assert row.neutral_share == pytest.approx(2 / 3)
+    assert row.insufficient_share == pytest.approx(1 / 3)
+
+
+def test_rows_without_a_basis_report_unknown_not_zero(tmp_path):
+    """Rows written before the field existed said nothing; 0.0 would claim
+    they said "judged"."""
+    row = _row("akre", "A", "neutral")
+    row.pop("basis", None)
+    card = scorecard(_ledger(tmp_path, [row]), NoPrices(), "2026-12-01", horizons=(63,), staffed={"akre"})
+    assert next(r.insufficient_share for r in card.rows if r.school == "akre") is None

@@ -77,6 +77,7 @@ class ScoreRow:
     stderr: float | None
     mean_vs_universe: float | None
     neutral_share: float | None
+    insufficient_share: float | None
     coverage: str
     status: str
 
@@ -87,6 +88,7 @@ class Scorecard:
     min_calls: int
     horizons: tuple[int, ...]
     rows: list[ScoreRow]
+    since: str | None = None
 
     @property
     def coverage_by_state(self) -> dict[str, list[str]]:
@@ -101,13 +103,14 @@ class Scorecard:
 
     def render(self) -> str:
         lines = [
-            f"Scorecard as of {self.today} (min_calls={self.min_calls}; excess over SPY, signed by the call)",
+            f"Scorecard as of {self.today} (min_calls={self.min_calls}; excess over SPY, signed by the call)"
+            + (f"\n  counting verdicts made on or after {self.since}" if self.since else ""),
             "",
             self._render_coverage(),
             "",
         ]
 
-        head = f"{'school':26}| {'h':>4} | {'n':>4} | {'hit':>6} | {'mean vs SPY':>18} | {'vs universe':>12} | {'neutral':>8} | {'coverage':12} | status"  # noqa: E501
+        head = f"{'school':26}| {'h':>4} | {'n':>4} | {'hit':>6} | {'mean vs SPY':>18} | {'vs universe':>12} | {'neutral':>8} | {'cant tell':>9} | {'coverage':12} | status"  # noqa: E501
         lines += [head, "-" * len(head)]
         ranked = [r for r in self.rows if r.n or r.coverage in (SCORED, PROVISIONAL)]
         for r in ranked:
@@ -117,7 +120,7 @@ class Scorecard:
                 else f"{r.mean_signed:+.2%}" + ("" if r.stderr is None else f" ± {r.stderr:.2%}")
             )
             lines.append(
-                f"{r.school:26}| {r.horizon:>4} | {r.n:>4} | {_pct(r.hit_rate):>6} | {mean:>18} | {_pct(r.mean_vs_universe, signed=True):>12} | {_pct(r.neutral_share):>8} | {r.coverage:12} | {r.status}"  # noqa: E501
+                f"{r.school:26}| {r.horizon:>4} | {r.n:>4} | {_pct(r.hit_rate):>6} | {mean:>18} | {_pct(r.mean_vs_universe, signed=True):>12} | {_pct(r.neutral_share):>8} | {_pct(r.insufficient_share):>9} | {r.coverage:12} | {r.status}"  # noqa: E501
             )
 
         # Schools with no rows at all are named here rather than printed as
@@ -129,7 +132,7 @@ class Scorecard:
             note = blocked_reason(school)
             detail = f" — {note.split('.')[0]}." if note else ""
             lines.append(
-                f"{school:26}|    - |    - |      - |                  - |            - |        - | {state:12} | not ranked{detail}"  # noqa: E501
+                f"{school:26}|    - |    - |      - |                  - |            - |        - |         - | {state:12} | not ranked{detail}"  # noqa: E501
             )  # noqa: E501
         return "\n".join(lines)
 
@@ -167,6 +170,7 @@ class Scorecard:
                 "today": self.today,
                 "min_calls": self.min_calls,
                 "horizons": list(self.horizons),
+                "since": self.since,
                 "rows": [asdict(r) for r in self.rows],
             },
             indent=2,
@@ -180,6 +184,7 @@ def scorecard(
     horizons: tuple[int, ...] = HORIZONS,
     min_calls: int = 20,
     staffed: set[str] | None = None,
+    since: str | None = None,
 ) -> Scorecard:
     """Score every school in the roster, not only those with calls.
 
@@ -189,13 +194,16 @@ def scorecard(
     filings. None means "unknown", which reports every school with calls as
     ad-hoc rather than inventing a rotation.
     """
-    rows = ledger.rows()
+    rows = ledger.rows(since)
     staffed = staffed or set()
     with_calls = {r["school"] for r in rows}
     # The roster, plus anything in the ledger the roster has since dropped —
     # a renamed or retired school must not vanish from its own history.
     schools = sorted(set(SCHOOLS) | with_calls)
     neutral_share = {s: _share([r for r in rows if r["school"] == s]) for s in schools}
+    # Of everything a school said, how much was "I cannot tell from this".
+    # A high number is a data problem wearing a judgment's clothes.
+    insufficient_share = {s: _insufficient([r for r in rows if r["school"] == s]) for s in schools}
 
     # Forward closes per (ticker, event_date), fetched once per pair.
     max_h = max(horizons)
@@ -306,16 +314,28 @@ def scorecard(
                     school=school,
                     horizon=h,
                     neutral_share=neutral_share[school],
+                    insufficient_share=insufficient_share[school],
                     coverage=coverage,
                     status=status,
                     **s,
                 )
             )
-    return Scorecard(today=today, min_calls=min_calls, horizons=tuple(horizons), rows=out)
+    return Scorecard(today=today, min_calls=min_calls, horizons=tuple(horizons), rows=out, since=since)
 
 
 def _share(rows: list[dict]) -> float | None:
     return (sum(1 for r in rows if r["signal"] == "neutral") / len(rows)) if rows else None
+
+
+def _insufficient(rows: list[dict]) -> float | None:
+    """Share of a school's verdicts that reported basis "insufficient".
+
+    None when no row carries a basis at all — rows written before the field
+    existed say nothing, and 0.0 would claim they said "judged"."""
+    known = [r for r in rows if r.get("basis")]
+    if not known:
+        return None
+    return sum(1 for r in known if r["basis"] == "insufficient") / len(known)
 
 
 def _pct(v: float | None, signed: bool = False) -> str:

@@ -507,6 +507,44 @@ know they were examined rather than missed.
 | Prompt text unguarded | The cost model depends on `render()` being byte-stable — no test covered it, because the existing ones compared `render()` to itself. A golden fixture and a pinned `content_hash` now do. |
 | `.gitignore` eating real files | A blanket `*.txt` silently swallowed the golden fixture. `*.png`/`*.pdf` are root-anchored; `*.txt` removed outright. |
 
+### What a `scored` row means after the universe widening
+
+Recorded because the trade is deliberate and easy to forget by March.
+
+`min_calls` stays at 20 — halving it would buy numbers that mean less,
+sooner. But widening the universe from 10 names to the whole screen (56
+quality, 24 value) changes how those 20 calls are gathered, and therefore
+what they are evidence of:
+
+| | Before | After |
+|---|---|---|
+| 20 directional calls take | ~17 months | ~3 months (quality), ~7 (value) |
+| Spread over | many quarters, many regimes | roughly one quarter, one regime |
+| Sector mix | whatever 10 names happened to pass | whatever the screen tilts toward |
+
+Twenty near-simultaneous observations of one regime and one screen's sector
+tilt are not the same evidence as twenty spread across seventeen months. The
+faster path was taken knowingly: seventeen months is a long time to learn
+nothing, and a school cannot earn or lose a seat on evidence that has not
+arrived. But a `scored` row in March means "survived one quarter" and not
+"survived a cycle", and it should not be read as the latter.
+
+**`mean_vs_universe` is less exposed than hit rate.** It grades each verdict
+against the equal-weight return of the names the same school saw on the same
+desk the same day, so a regime that lifts everything lifts the bar too. Hit
+rate has no such control: in a quarter where the screen's sector runs, a
+long-biased school posts a high hit rate for reasons that have nothing to do
+with discrimination. Read `vs universe` first when the sample is short.
+
+**Surfacing calendar spread alongside call count** would make this visible
+rather than remembered. The ledger already carries `event_date` on every
+row, so the cheap version is two derived numbers per school — the span from
+first to last scored call, and the count of distinct event dates — added to
+`ScoreRow` and rendered next to `n`. "n=22 over 2 dates spanning 14 days"
+reads very differently from "n=22 over 9 dates spanning 300 days", and
+neither needs new data. Not built; noted as the smallest thing that would
+stop this section being the only record.
+
 ### A principle worth stating
 
 The `classify()` correction in the coverage work generalizes, and it is the

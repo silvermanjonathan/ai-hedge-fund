@@ -69,17 +69,34 @@ class Ledger:
     # Reading
     # ------------------------------------------------------------------
 
-    def rows(self) -> list[dict]:
-        return list(self._rows)
+    def rows(self, since: str | None = None) -> list[dict]:
+        """Every row, or only those made on or after *since* (YYYY-MM-DD).
+
+        The cutoff exists because a universe change makes older verdicts
+        incomparable: they grade a school on names it will never be shown
+        again, against a universe bar built from a different screen.
+        Nothing is deleted — the rows stay as history and simply fall
+        outside the window.
+        """
+        if since is None:
+            return list(self._rows)
+        return [r for r in self._rows if (r.get("event_date") or "") >= since]
 
     def __len__(self) -> int:
         return len(self._rows)
 
-    def latest_per_ticker_school(self) -> dict[tuple[str, str], dict]:
+    def latest_per_ticker_school(self, since: str | None = None) -> dict[tuple[str, str], dict]:
         """For each (ticker, school), the row with the greatest filing_date
-        (ties and missing dates fall back to event_date, then log order)."""
+        (ties and missing dates fall back to event_date, then log order).
+
+        Honours *since* for the same reason the scorecard does, and it
+        matters more here: this feeds the candidates playbook, which is the
+        output that gets acted on. Without the cutoff a name that has left
+        the universe keeps surfacing as an entry candidate on the strength
+        of a verdict from a screen that no longer exists.
+        """
         latest: dict[tuple[str, str], dict] = {}
-        for row in self._rows:
+        for row in self.rows(since):
             key = (row["ticker"], row["school"])
             if key not in latest or _recency(row) > _recency(latest[key]):
                 latest[key] = row
@@ -131,6 +148,9 @@ class Ledger:
                         "snapshot_hash": snapshot_hash,
                         "filing_date": signal.get("filing_date"),
                         "signal": label,
+                        # Why a neutral is neutral. Rows written before
+                        # Sept 2026 have none, and read as unknown.
+                        "basis": meta.get("basis"),
                         "confidence": float(confidence) if confidence is not None else None,
                         "value": float(signal.get("value", 0.0)),
                         "desk": desk,
