@@ -749,10 +749,18 @@ is still open:
      cost is real: a prompt edit resets every in-flight verdict's clock,
      so improving prompts is not free in evaluation time.
 
-   The third is the most defensible and the most expensive. It is also the
-   same question as the standing-position design in §11.6, where it
-   appears as "which verdict is the live position" — so both should be
-   decided together rather than drifting apart.
+   **Decided (Sept 2026): rule 3, and it is the live-position definition
+   for §11.6 too.** A verdict is scored only if it stood unchanged for its
+   whole horizon; one revised before then is not scored at all, and the
+   revision is. The same sentence defines which verdict is live in the
+   standing-position design, so the two cannot drift apart.
+
+   The cost is real and is the point. A prompt edit no longer costs only
+   the re-seed's money — it costs however many weeks of accumulated
+   horizon were in flight, and that is visible BEFORE editing rather than
+   arriving with the bill. It converts an invisible money cost into a
+   visible time cost, which makes prompt discipline mechanical instead of
+   remembered.
 
 10. **Should a live run record its own verdicts?** See the assessment
    accompanying this branch: `aihf <mandate> --tickers` discards its

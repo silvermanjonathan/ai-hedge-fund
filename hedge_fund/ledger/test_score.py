@@ -29,10 +29,20 @@ TRADING = list(_days())
 INDEX = {d: i for i, d in TRADING}
 
 
+def _drift(ticker):
+    """Exact match first, then prefix: UP0..UP24 behave like UP, so a test
+    can use distinct tickers (which rule 3 requires) without naming each
+    one. Anything unrecognised is flat — filler for cohort-size tests."""
+    if ticker in DRIFT:
+        return DRIFT[ticker]
+    for name, value in DRIFT.items():
+        if ticker.startswith(name):
+            return value
+    return 0.0
+
+
 def close(ticker, d):
-    # Unknown tickers are flat. Cohort-size tests need filler names whose
-    # only job is to make the universe bar a mean rather than a comparison.
-    return 100.0 * (1 + DRIFT.get(ticker, 0.0)) ** INDEX[d]
+    return 100.0 * (1 + _drift(ticker)) ** INDEX[d]
 
 
 class FakeData:
@@ -132,9 +142,11 @@ def test_unpriced_rows_are_skipped(tmp_path):
 def test_status_earned_probation_and_coverage(tmp_path):
     """status is the verdict and only exists when the sample earns one;
     coverage says whether it does."""
-    good = [_row("g", "UP", "bullish", 70, i, key=f"g{i}") for i in range(25)]
-    bad = [_row("p", "UP", "bearish", 70, i, key=f"p{i}") for i in range(25)]
-    few = [_row("f", "UP", "bullish", 70, i, key=f"f{i}") for i in range(5)]
+    # Distinct tickers, not repeats of one: under rule 3 a second verdict
+    # on the same name supersedes the first rather than adding a call.
+    good = [_row("g", f"UP{i}", "bullish", 70, 0, key=f"g{i}") for i in range(25)]
+    bad = [_row("p", f"UP{i}", "bearish", 70, 0, key=f"p{i}") for i in range(25)]
+    few = [_row("f", f"UP{i}", "bullish", 70, 0, key=f"f{i}") for i in range(5)]
     card = scorecard(
         _ledger(tmp_path, good + bad + few),
         FakeData(),
@@ -251,3 +263,64 @@ def test_price_fetch_window_clears_every_horizon_with_holiday_slack():
             f"{window}-day fetch window; a holiday cluster would make verdicts "
             "at this horizon silently unscorable"
         )
+
+
+# ---------------------------------------------------------------------------
+# Rule 3 — a verdict is scored only if it stood for its whole horizon
+# ---------------------------------------------------------------------------
+
+
+def test_a_superseded_verdict_is_not_scored(tmp_path):
+    """Grading a revised opinion measures a school on something it no
+    longer held. The first call is replaced on day 1 of a 21-day horizon,
+    so only the replacement scores."""
+    first = _row("a", "UP", "bullish", 80, 0, key="first")
+    second = _row("a", "UP", "bearish", 80, 1, key="second")
+    card = scorecard(_ledger(tmp_path, [first, second]), FakeData(), _today(40), horizons=(21,), min_calls=1)
+    a = _find(card, "a", 21)
+
+    assert a.n == 1, "only the standing verdict is scored"
+    # UP rises, so a bearish call on it scores negatively.
+    assert a.mean_signed < 0
+
+
+def test_a_verdict_that_ran_its_full_horizon_still_scores(tmp_path):
+    """Supersession only disqualifies a call revised BEFORE its horizon
+    ended. One replaced afterwards had a fair test and keeps its score."""
+    first = _row("a", "UP", "bullish", 80, 0, key="first")
+    late = _row("a", "UP", "bearish", 80, 30, key="late")  # well past 21 days
+    card = scorecard(_ledger(tmp_path, [first, late]), FakeData(), _today(60), horizons=(21,), min_calls=1)
+    a = _find(card, "a", 21)
+
+    assert a.n == 2, "both stood for a full 21 days before being replaced"
+
+
+def test_supersession_is_per_school_and_ticker(tmp_path):
+    """One school revising its view of AAPL says nothing about another
+    school, or about the same school's view of MSFT."""
+    rows = [
+        _row("a", "UP", "bullish", 80, 0, key="a-up-1"),
+        _row("a", "UP", "bearish", 80, 1, key="a-up-2"),  # supersedes the above
+        _row("a", "DOWN", "bearish", 80, 0, key="a-down"),  # untouched
+        _row("b", "UP", "bullish", 80, 0, key="b-up"),  # different school
+    ]
+    card = scorecard(_ledger(tmp_path, rows), FakeData(), _today(40), horizons=(21,), min_calls=1)
+
+    assert _find(card, "a", 21).n == 2  # a-up-2 and a-down
+    assert _find(card, "b", 21).n == 1
+
+
+def test_a_prompt_edit_does_not_double_the_sample(tmp_path):
+    """The reason rule 3 exists. Ledger identity keys on the question, so
+    re-asking the whole cohort under a new prompt writes a second row per
+    name. Counting both would double every school's n overnight with the
+    same opinions measured from two entry prices — the 'numbers that mean
+    less, sooner' outcome min_calls was held at 20 to avoid."""
+    before = [_row("a", f"UP{i}", "bullish", 70, 0, key=f"v1-{i}") for i in range(5)]
+    after = [_row("a", f"UP{i}", "bullish", 70, 1, key=f"v2-{i}") for i in range(5)]
+
+    only_first = scorecard(_ledger(tmp_path, before), FakeData(), _today(40), horizons=(21,), min_calls=1)
+    both = scorecard(_ledger(tmp_path, before + after), FakeData(), _today(40), horizons=(21,), min_calls=1)
+
+    assert _find(only_first, "a", 21).n == 5
+    assert _find(both, "a", 21).n == 5, "a re-ask replaces the call, it does not add one"

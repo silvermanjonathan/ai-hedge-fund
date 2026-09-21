@@ -224,9 +224,12 @@ def scorecard(
 
     # Forward closes per (ticker, event_date), fetched once per pair.
     max_h = max(horizons)
-    bars_cache: dict[tuple[str, str], list] = {}
+    bars_cache: dict[tuple[str, str], list[tuple[str, float]]] = {}
 
-    def forward_closes(ticker: str, event_date: str) -> list[float]:
+    def forward_bars(ticker: str, event_date: str) -> list[tuple[str, float]]:
+        """(day, close) for each trading day after *event_date*. The days
+        matter: rule 3 needs the date a horizon ends, to know whether a
+        verdict was superseded before it got there."""
         key = (ticker, event_date)
         if key not in bars_cache:
             start = date.fromisoformat(event_date)
@@ -238,8 +241,23 @@ def scorecard(
                 logger.warning("scorecard: no forward prices for %s from %s: %s", ticker, event_date, exc)
                 bars = []
             after = sorted((b for b in bars if event_date < b.time[:10] <= today), key=lambda b: b.time)
-            bars_cache[key] = [b.close for b in after]
+            bars_cache[key] = [(b.time[:10], b.close) for b in after]
         return bars_cache[key]
+
+    # Rule 3: a verdict is scored only if it stood unchanged for its whole
+    # horizon. One superseded earlier than that never got a fair test —
+    # grading it anyway measures a school on an opinion it had already
+    # revised. superseded_on[key] is the event_date of the next verdict the
+    # same school made about the same ticker, or None if it still stands.
+    by_pair: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    for r in rows:
+        by_pair[(r["school"], r["ticker"])].append(r)
+    superseded_on: dict[str, str | None] = {}
+    for pair_rows in by_pair.values():
+        ordered = sorted(pair_rows, key=lambda r: (r.get("event_date") or "", r.get("logged_at") or ""))
+        for earlier, later in zip(ordered, ordered[1:]):
+            superseded_on[earlier["key"]] = later["event_date"]
+        superseded_on[ordered[-1]["key"]] = None
 
     # Raw forward returns for every priced row (neutral included: they define the universe bar).
     raw: dict[tuple[str, int], float] = {}  # (row key, horizon) -> close_h / entry - 1
@@ -247,12 +265,18 @@ def scorecard(
     for r in rows:
         if r.get("entry_close") is None or r.get("spy_close") is None:
             continue
-        closes = forward_closes(r["ticker"], r["event_date"])
-        spy_closes = forward_closes(BENCHMARK, r["event_date"])
+        closes = forward_bars(r["ticker"], r["event_date"])
+        spy_closes = forward_bars(BENCHMARK, r["event_date"])
         for h in horizons:
-            if len(closes) >= h and len(spy_closes) >= h:
-                raw[(r["key"], h)] = closes[h - 1] / r["entry_close"] - 1
-                spy[(r["event_date"], h)] = spy_closes[h - 1] / r["spy_close"] - 1
+            if len(closes) < h or len(spy_closes) < h:
+                continue
+            # Rule 3. The horizon ends on the h-th trading day; a verdict
+            # revised on or before that day was not held to the end of it.
+            revised = superseded_on.get(r["key"])
+            if revised is not None and revised <= closes[h - 1][0]:
+                continue
+            raw[(r["key"], h)] = closes[h - 1][1] / r["entry_close"] - 1
+            spy[(r["event_date"], h)] = spy_closes[h - 1][1] / r["spy_close"] - 1
 
     # Universe bar: equal-weight mean raw return of every ticker the school saw on that desk that day.
     groups: dict[tuple[str, str, str, int], list[float]] = defaultdict(list)
