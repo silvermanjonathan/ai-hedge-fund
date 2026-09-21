@@ -475,7 +475,83 @@ is still open:
    *What would settle it:* a session fixture pointing `HOME` at `tmp_path`
    with the live-test keys captured first, plus a check that no module
    under `hedge_fund/` reads `Path.home()` outside `paths.py`.
-6. **Should a live run record its own verdicts?** See the assessment
+6. **`mean_vs_universe` collapses on small cohorts, and most cohorts are
+   small.** The universe bar is the equal-weight return of every row
+   sharing a `(school, desk, event_date)` group. That grouping is correct
+   and contains no lookahead — it reads the ledger's own `event_date` and
+   measures from each row's own `entry_close`, never current screen
+   membership (verified Sept 2026). The problem is the group's *size*.
+
+   Rows are dated by the cycle that created them, and a cycle only creates
+   rows for names whose snapshot changed. Filings are quarterly and
+   staggered, so on an ordinary Monday only a handful of names are new.
+   Over 269 weeks of filing history for the 56-name quality screen:
+
+   | Cohort on a weekly cycle | Share of weeks |
+   |---|---:|
+   | 0 names (no filings) | 26% |
+   | **exactly 1** | **27%** |
+   | 2 | 13% |
+   | 3 | 6% |
+   | 4+ (a usable bar) | 29% |
+
+   A cohort of one gives `vs_universe = raw - raw = 0` **by construction**,
+   and a cohort of two gives plus or minus half the spread whatever the
+   school said. So roughly a third of scored verdicts will carry a hard
+   zero that has nothing to do with skill, pulling every school's
+   `mean_vs_universe` toward zero and compressing the differences between
+   them. Median cohort size is 1.
+
+   This matters because §12 recommends reading `vs universe` first when
+   the sample is short, on the grounds that it controls for a regime that
+   lifts everything. That reasoning is still right, and the metric is
+   nonetheless the *more* fragile of the two at this cadence. Hit rate is
+   unaffected.
+
+   *The likely fix, not yet built:* the bar should be every name the school
+   was SHOWN that day, not every name that produced a row. On 2026-09-20
+   the quality schools saw 56 names and wrote 46 rows — ten were dedup
+   skips whose verdicts were unchanged, and they are exactly as much a part
+   of "what you could have held" as the other 46. The CycleRecord already
+   carries the full universe and its marks; the ledger keeps only the new
+   verdicts, so the information exists and is discarded at ingest. Pooling
+   across a date window is a cruder alternative. Whatever is chosen,
+   reporting `None` rather than `0.0` below some cohort floor should come
+   first, so the number stops being silently diluted in the meantime.
+
+7. **Is a high `insufficient` rate a mark against a school, or for it?**
+   `basis` went live on 2026-09-20 and fired immediately: 17 of 184
+   verdicts (9%). The per-school spread is the interesting part, because
+   all four schools saw the *same* 46 snapshots:
+
+   | School | `insufficient` | neutral overall |
+   |---|---:|---:|
+   | fisher | 0% | 48% |
+   | akre | 9% | 76% |
+   | quality_compounder | 11% | 67% |
+   | fundsmith | 17% | 65% |
+
+   So the schools disagree about what counts as enough data, and that is a
+   property of the school rather than of the names. Two readings fit the
+   same number. Fundsmith declining 17% could be appropriate rigour — a
+   method that genuinely needs inputs an EDGAR snapshot does not carry,
+   correctly refusing to guess. Or it could be a school that cannot work
+   with the data this system can supply, in which case the abstentions are
+   a fit problem wearing the clothes of discipline. Today those are
+   indistinguishable.
+
+   They separate with forward returns: if fundsmith's *judged* calls score
+   well while its `insufficient` names behave no differently from the
+   universe, the abstaining was discrimination. If its judged calls are no
+   better than anyone's, the high rate was just noise about coverage. The
+   scorecard can answer it once there are 20 scored calls.
+
+   Written down now, with the baseline above, so it is decided on evidence
+   rather than under pressure when the first numbers land. A school should
+   not lose its seat for abstaining until it is clear abstaining did not
+   help.
+
+8. **Should a live run record its own verdicts?** See the assessment
    accompanying this branch: `aihf <mandate> --tickers` discards its
    CycleRecord unless `--out` is passed, so a hand-run desk produces paid
    LLM verdicts that never reach the ledger. 101 of them exist only as
