@@ -27,6 +27,8 @@ at full price. Change prompts deliberately, not to make a test green.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from hedge_fund.signals import ALPHA_MODEL_REGISTRY
@@ -53,6 +55,9 @@ REQUIRED = {
     "do not fabricate figures": "Do not invent numbers",
     "answer as JSON only": "Respond with JSON only",
     "abstain on thin data": "cannot support a call either way",
+    "read a figure against its sector": "normal for ITS sector",
+    "treat multiples as of the filing": "not a live quote",
+    "confidence is conviction, not liking": "understating it on a short",
     "distinguish declining from not knowing": '"basis": "judged" | "insufficient"',
 }
 
@@ -121,3 +126,55 @@ def test_the_abstain_clause_is_worded_identically_everywhere():
     assert not offenders, (
         f"{offenders} word the abstain rule differently. Copy the line from " "hedge_fund/signals/buffett.py verbatim."
     )
+
+
+# ---------------------------------------------------------------------------
+# Byte-identity, not just presence
+# ---------------------------------------------------------------------------
+
+SHARED_CLAUSES = {
+    "point-in-time": r"- Reason ONLY from the data provided.*?Do not invent numbers\.\n",
+    "sector comparability": r"- The sector and industry.*?last one you saw\.\n",
+    "multiples as of filing": r"- Market cap and P/E.*?live quote\.\n",
+    "abstain on thin data": r"- If the facts shown cannot support.*?nothing\n  exciting\.\n",
+    "confidence semantics": r"- Confidence is how sure.*?understates the short\.\n",
+}
+
+
+@pytest.mark.parametrize("label,pattern", sorted(SHARED_CLAUSES.items()))
+def test_a_shared_clause_is_byte_identical_everywhere(label, pattern):
+    """Presence is not enough — the wording has to match exactly.
+
+    Three personas drifted on the abstain clause and it was found only by
+    going looking. The same drift on confidence semantics would reintroduce
+    the bug §11.10 records: eight prompts never defined confidence, and
+    confidence sizes the position, so chanos and earnings_quality_skeptic
+    were under-sizing the shorts they exist to make. A paraphrase that
+    loses "a bearish call you are certain of is HIGH confidence" brings
+    that back silently.
+
+    Eighteen schools are also compared against each other on one
+    scorecard. A difference between them should be a difference in method,
+    never in the instructions they were given.
+    """
+    seen = {}
+    for persona in PERSONAS:
+        match = re.search(pattern, prompt_for(persona), re.S)
+        assert match, f"{persona} is missing the {label} clause entirely"
+        seen.setdefault(match.group(0), []).append(persona)
+    assert len(seen) == 1, f"the {label} clause has {len(seen)} different wordings:\n" + "\n".join(
+        f"  {sorted(who)}: {text[:90]!r}…" for text, who in seen.items()
+    )
+
+
+def test_the_shared_tail_appears_in_the_same_order_everywhere():
+    """A reader comparing two personas should find the common rules in the
+    same place, and a persona's own bullet after them rather than mixed in."""
+    order = None
+    for persona in PERSONAS:
+        prompt = prompt_for(persona)
+        positions = [(prompt.index(re.search(p, prompt, re.S).group(0)), label) for label, p in SHARED_CLAUSES.items()]
+        got = [label for _, label in sorted(positions)]
+        if order is None:
+            order = got
+        assert got == order, f"{persona} orders the shared clauses differently: {got} != {order}"
