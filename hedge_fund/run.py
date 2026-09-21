@@ -134,6 +134,15 @@ def main() -> None:
         "prompt-cache misses, so a week with no new filings estimates at $0",
     )
     parser.add_argument(
+        "--screen",
+        metavar="TICKERS",
+        help="the tickers the SCREEN produced for this run, comma separated. "
+        "Anything in --tickers that is not here was carried: a name a school "
+        "still holds a directional view on after it left the screen. The "
+        "ledger marks those rows so they do not inflate the screen's universe "
+        "bar. Omit it and nothing is marked carried.",
+    )
+    parser.add_argument(
         "--no-ledger",
         action="store_true",
         help="do not log this cycle's verdicts to the ledger. The record is "
@@ -313,7 +322,8 @@ def _log_verdicts(record, receipt: Path, args, console: Console) -> None:
         from hedge_fund.ledger import Ledger
 
         with open_data_client() as fd:
-            result = Ledger().ingest(receipt, fd)
+            screen = args.screen.replace(",", " ").split() if args.screen else None
+            result = Ledger().ingest(receipt, fd, screen=screen)
         console.print(f"[dim]ledger: {result}[/]")
     except Exception as exc:  # a reporting side-effect must never fail the run
         console.print(f"[yellow]ledger: could not log this cycle ({exc}); record at {receipt}[/]")

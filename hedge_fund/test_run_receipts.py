@@ -38,7 +38,7 @@ class Recorder:
 
 
 def _args(**kw):
-    base = {"no_ledger": False, "date": date.today().isoformat()}
+    base = {"no_ledger": False, "screen": None, "date": date.today().isoformat()}
     base.update(kw)
     return SimpleNamespace(**base)
 
@@ -55,8 +55,9 @@ def test_a_live_cycle_is_logged(monkeypatch, receipt):
     logged = {}
 
     class FakeLedger:
-        def ingest(self, path, client):
+        def ingest(self, path, client, *, screen=None):
             logged["path"] = path
+            logged["screen"] = screen
             return "added=4 skipped=0 abstained=0"
 
     monkeypatch.setattr("hedge_fund.ledger.Ledger", FakeLedger)
@@ -75,7 +76,7 @@ def test_a_past_dated_cycle_is_never_logged(monkeypatch, receipt, days_back):
     called = []
 
     class FakeLedger:
-        def ingest(self, path, client):
+        def ingest(self, path, client, *, screen=None):
             called.append(path)
             return "added=1"
 
@@ -94,7 +95,7 @@ def test_no_ledger_flag_skips_but_keeps_the_record(monkeypatch, receipt):
     called = []
 
     class FakeLedger:
-        def ingest(self, path, client):
+        def ingest(self, path, client, *, screen=None):
             called.append(path)
 
     monkeypatch.setattr("hedge_fund.ledger.Ledger", FakeLedger)
@@ -111,7 +112,7 @@ def test_a_ledger_failure_never_fails_the_run(monkeypatch, receipt):
     must not report failure because a downstream write broke."""
 
     class Exploding:
-        def ingest(self, path, client):
+        def ingest(self, path, client, *, screen=None):
             raise RuntimeError("disk full")
 
     monkeypatch.setattr("hedge_fund.ledger.Ledger", Exploding)
@@ -141,3 +142,35 @@ class _FakeClient:
 
 def _fake_client(*a, **kw):
     return _FakeClient()
+
+
+def test_the_screen_is_passed_through_to_the_ledger(monkeypatch, receipt):
+    """Anything in the run that was not on the screen was carried, and the
+    ledger needs to know which so carried names stay out of the screen's
+    universe bar."""
+    seen = {}
+
+    class FakeLedger:
+        def ingest(self, path, client, *, screen=None):
+            seen["screen"] = screen
+            return "added=1"
+
+    monkeypatch.setattr("hedge_fund.ledger.Ledger", FakeLedger)
+    monkeypatch.setattr(run_mod, "open_data_client", _fake_client)
+    run_mod._log_verdicts(None, receipt, _args(screen="AAA,BBB"), Recorder())
+    assert seen["screen"] == ["AAA", "BBB"]
+
+
+def test_no_screen_means_nothing_is_marked_carried(monkeypatch, receipt):
+    """The honest default for a caller that cannot say."""
+    seen = {}
+
+    class FakeLedger:
+        def ingest(self, path, client, *, screen=None):
+            seen["screen"] = screen
+            return "added=1"
+
+    monkeypatch.setattr("hedge_fund.ledger.Ledger", FakeLedger)
+    monkeypatch.setattr(run_mod, "open_data_client", _fake_client)
+    run_mod._log_verdicts(None, receipt, _args(), Recorder())
+    assert seen["screen"] is None

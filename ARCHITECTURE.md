@@ -509,6 +509,33 @@ is still open:
    nonetheless the *more* fragile of the two at this cadence. Hit rate is
    unaffected.
 
+   **Standing-position design, decided Sept 2026 (not yet built).** The
+   live position for a (school, ticker) is *the verdict that stands under
+   rule 3* — the same sentence the scorer uses, so the two cannot drift.
+   Around that:
+
+   - **A position survives its name leaving the screen.** A real portfolio
+     still owns it; the school's view did not change because a screen's
+     thresholds moved. Named as a decision, because letting it fall out of
+     the mechanism would shrink books toward current screen membership and
+     reintroduce exactly what the universe bar must not do.
+   - **It expires after two quarters** with no new filing — the backstop
+     for names that stop filing or delist.
+   - **An expired position becomes flat, not removed**: weight 0, still in
+     the book and still in the universe bar. Removing it would shrink the
+     book toward current membership by another route.
+   - **Books grow monotonically**, so a school evaluated later holds views
+     on names long gone. That is correct: the bar is "everything this
+     school has seen and still holds", not "today's screen".
+
+   *Simplified by carrying (§11.13).* The design originally also expired a
+   position when its name filed something the school never saw. With held
+   names carried past a screen exit the school DOES see it — a carried
+   name's filing triggers a fresh verdict, which supersedes under rule 3 —
+   so that trigger could only ever fire for views we deliberately do not
+   carry. Dropped. One rule fewer, and the two-quarter backstop still does
+   the real work.
+
    *The likely fix, not yet built:* the bar should be every name the school
    was SHOWN that day, not every name that produced a row. On 2026-09-20
    the quality schools saw 56 names and wrote 46 rows — ten were dedup
@@ -888,7 +915,51 @@ is still open:
     cases, not that effort never matters. Re-open it on evidence, not on
     a hunch.
 
-13. **Should a live run record its own verdicts?** See the assessment
+13. **Carrying held names past a screen exit** — built Sept 2026,
+    `hedge_fund/ledger/carry.py`.
+
+    A school forms a new view only when the name is in that week's
+    universe AND has filed since, so a name that left the screen before
+    its next 10-Q was never re-asked and its view could never flip. That
+    matters more than the low turnover rate suggests, because of WHICH
+    names leave: the screens are threshold-based, so a quality company
+    drops out of the quality screen at precisely the moment its margins
+    deteriorate. **The exits were disproportionately the names where a
+    negative flip was likeliest**, so the system was structurally blind to
+    the leads worth most.
+
+    DINO is the case: it left the value screen five days after the pilot
+    carrying three directional views, and would have kept filing with
+    nobody ever asked again.
+
+    Qualifying is deliberately narrow — directional only, live under rule
+    3, post-cutoff only, and not already on the screen. The post-cutoff
+    rule is why DINO itself does **not** qualify: its views came from the
+    Sept 15 pilot, formed on snapshots since found wrong under prompts
+    since replaced, which the scorecard already discards. Carrying on
+    their strength would re-ask a name because of a view we decided not to
+    count.
+
+    Separation is a `carried` flag at ingest, not a desk label, because
+    `desk` is also display and grouping and encoding state in a name
+    leaks. The scorer groups the universe bar by `(school, desk, carried,
+    event_date)`, so a carried name never benchmarks a school against its
+    own past holdings. A carried cohort is usually one or two names and so
+    falls below `MIN_UNIVERSE_COHORT`: carried verdicts get no universe
+    bar at all, which is the honest answer, since a name off the screen
+    has no screen cohort. They still score against SPY, the comparison
+    that matters for a flip.
+
+    The flag is recomputed from current membership every week rather than
+    sticking, so a name that re-enters rejoins its cohort.
+
+    Cost: nothing until a carried name files. The estimate is ~9 carried
+    names and ~$1 a quarter, but it rests on a SINGLE turnover observation
+    (one exit across 79 names in five days).
+    `~/.hedge-fund/logs/universe/turnover.csv` is accumulating the real
+    series; re-derive from it rather than trusting this.
+
+14. **Should a live run record its own verdicts?** See the assessment
    accompanying this branch: `aihf <mandate> --tickers` discards its
    CycleRecord unless `--out` is passed, so a hand-run desk produces paid
    LLM verdicts that never reach the ledger. 101 of them exist only as

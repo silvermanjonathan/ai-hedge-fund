@@ -27,6 +27,7 @@ import json
 import logging
 import os
 import threading
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -119,8 +120,30 @@ class Ledger:
     # Ingest
     # ------------------------------------------------------------------
 
-    def ingest(self, record_path: Path | str, data_client: DataClient) -> IngestResult:
-        """Log every new non-abstained LLM verdict in one CycleRecord file."""
+    def ingest(
+        self,
+        record_path: Path | str,
+        data_client: DataClient,
+        *,
+        screen: Iterable[str] | None = None,
+    ) -> IngestResult:
+        """Log every new non-abstained LLM verdict in one CycleRecord file.
+
+        *screen* is the ticker list the screen produced for this run. Any
+        name in the record's universe that is NOT in it was carried — the
+        school still holds a directional view on it after it left the
+        screen (see carry.py). Rows are marked so the scorer can keep
+        carried names out of the screen's universe bar, where they would
+        otherwise inflate a school's benchmark with its own past holdings.
+
+        The flag is computed from CURRENT membership every run rather than
+        being sticky, so a name that re-enters the screen rejoins its
+        cohort instead of staying outside the bar on a historical exit.
+
+        None means "not known", which marks nothing carried — the honest
+        default for a caller that cannot say.
+        """
+        on_screen = None if screen is None else {t.strip().upper() for t in screen if t.strip()}
         record = json.loads(Path(record_path).read_text())
         as_of = record["as_of"]
         fund = record["fund"]
@@ -179,6 +202,7 @@ class Ledger:
                         "confidence": float(confidence) if confidence is not None else None,
                         "value": float(signal.get("value", 0.0)),
                         "desk": desk,
+                        "carried": (None if on_screen is None else signal["ticker"].upper() not in on_screen),
                         "event_date": as_of,
                         "logged_at": logged_at,
                         "entry_close": close_for(signal["ticker"]),
