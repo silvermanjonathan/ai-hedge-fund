@@ -30,6 +30,7 @@ from hedge_fund.data.models import (
     Price,
 )
 from hedge_fund.data.protocol import DataClient
+from hedge_fund.data.xbrl import DERIVATION_VERSION
 from hedge_fund.paths import CACHE_DIR
 
 DEFAULT_CACHE_DIR = CACHE_DIR / "data"
@@ -126,8 +127,15 @@ class CachedDataClient:
     # ------------------------------------------------------------------
 
     def _key(self, method: str, params: dict) -> str:
+        """Cache key for one (method, params) request.
+
+        DERIVATION_VERSION is part of it so that changing how a row is
+        derived from XBRL invalidates every cached row automatically. The
+        alternative is remembering --refresh-data, and a run that forgets
+        it re-measures old data at full price while reporting success.
+        """
         canonical = json.dumps(params, sort_keys=True)
-        return hashlib.sha256(f"{method}|{canonical}".encode()).hexdigest()[:24]
+        return hashlib.sha256(f"v{DERIVATION_VERSION}|{method}|{canonical}".encode()).hexdigest()[:24]
 
     def _read(self, key: str) -> dict | None:
         if self._refresh:

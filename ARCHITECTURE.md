@@ -692,11 +692,27 @@ is still open:
    | fundsmith on Financials | 33% | **falls** | same |
    | klarman on Financials | 0% | **stays 0%** | nothing in this change gives it a reason to hesitate |
 
-   **The headline prediction is that the gap widens rather than closes:**
-   Financials become more confidently scored, non-financials slightly less.
-   If that happens, the rendering fix improved honesty about missing data
-   and did not touch the cross-sector problem, and the next move is a
-   prompt or universe change rather than another data one.
+   **Success and failure are defined separately, so neither can be
+   reinterpreted after the result is in.**
+
+   *Not a failure:* non-Financials rising to 12-18%. Schools abstaining
+   more where data is genuinely unreadable is the fix working — `n/r` says
+   "unknown, do not infer" more forcefully than a dash did, and more
+   honesty about missing data is the point.
+
+   *Success:* Financials' rate rises, or at minimum holds, while the gap
+   between Financials and non-Financials narrows. That would mean the
+   `n/a` marking made a thin snapshot read as thin.
+
+   *Failure, stated narrowly:* **klarman stays at 0% on Financials while
+   its non-Financial rate climbs.** That combination is the one that
+   matters — it would mean `n/a` made a sparse snapshot read as a cleaner
+   picture rather than a smaller one, which is the original worry
+   precisely. The same shape across several schools is the same failure.
+
+   If it fails that way, the fix improved honesty about missing data and
+   left the cross-sector problem untouched, and the next move is a prompt
+   or universe change rather than another data one.
 
    One caveat that is not an escape hatch: klarman, dreman, pabrai and
    schloss each have only 2 Financial rows, so their individual figures
@@ -705,7 +721,40 @@ is still open:
    fair test of klarman needs the value screen to carry more Financials
    than it does today.
 
-9. **Should a live run record its own verdicts?** See the assessment
+9. **Should the scorer count a re-logged verdict twice?** Ledger identity
+   moved to `(school, ticker, prompt_key)` in Sept 2026 so that a prompt
+   change re-logs rather than being silently deduplicated. The consequence
+   is that a prompt edit writes a fresh row for every name at the current
+   price, so a school holds two rows for one name weeks apart.
+
+   Both rows are an honest record of what it said when. The open question
+   is what the SCORER should do with them, and today it does the wrong
+   thing: `stats[(school, h)]` appends per row, so every verdict is an
+   independent observation in `n`, `hit_rate` and `mean_signed`. A prompt
+   edit would therefore double every school's `n` overnight — akre 46 to
+   92, dalio_resilience 59 to 118 — with the same opinions measured from
+   two entry prices. That is the "numbers that mean less, sooner" outcome
+   that `min_calls` was held at 20 to avoid, arriving through a side door.
+
+   Three candidate rules:
+
+   - *Count all rows* (today). Wrong: correlated observations inflate `n`.
+   - *Count the latest per (school, ticker) within the window.* One
+     opinion, one observation. Loses the earlier call's outcome even where
+     it ran for its full horizon before being superseded.
+   - *Score only a verdict that stood unchanged for its whole horizon.*
+     A call superseded before its horizon elapsed never got a fair test,
+     so it is not scored; the superseding one is. Principled, and it makes
+     the double-entry problem disappear rather than papering over it. The
+     cost is real: a prompt edit resets every in-flight verdict's clock,
+     so improving prompts is not free in evaluation time.
+
+   The third is the most defensible and the most expensive. It is also the
+   same question as the standing-position design in §11.6, where it
+   appears as "which verdict is the live position" — so both should be
+   decided together rather than drifting apart.
+
+10. **Should a live run record its own verdicts?** See the assessment
    accompanying this branch: `aihf <mandate> --tickers` discards its
    CycleRecord unless `--out` is passed, so a hand-run desk produces paid
    LLM verdicts that never reach the ledger. 101 of them exist only as

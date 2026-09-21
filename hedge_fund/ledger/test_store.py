@@ -31,7 +31,7 @@ class FakeData:
         return out
 
 
-def _signal(school, ticker, signal, conf, snapshot="h1", filing="2026-07-29", abstained=False):
+def _signal(school, ticker, signal, conf, snapshot="h1", filing="2026-07-29", abstained=False, prompt=None):
     if abstained:
         return {
             "model_name": school,
@@ -57,7 +57,9 @@ def _signal(school, ticker, signal, conf, snapshot="h1", filing="2026-07-29", ab
             "signal": signal,
             "confidence": conf,
             "model": "m",
-            "prompt_key": "k",
+            # In production this hashes persona + model + effort + the
+            # rendered snapshot, so it moves whenever the snapshot does.
+            "prompt_key": prompt or f"pk-{snapshot}",
             "snapshot_hash": snapshot,
             "cached": False,
             "abstained": False,
@@ -89,7 +91,7 @@ def test_ingest_logs_each_verdict_once_with_prices(tmp_path):
     assert (result.added, result.skipped, result.abstained) == (2, 0, 0)
     rows = ledger.rows()
     assert (
-        rows[0]["key"] == "fisher|AAPL|h1"
+        rows[0]["key"] == "fisher|AAPL|pk-h1"
         and rows[0]["desk"] == "test-desk/pod"
         and rows[0]["event_date"] == "2026-09-15"
     )
@@ -164,3 +166,58 @@ def test_legacy_record_without_signal_fields_falls_back_to_metadata(tmp_path):
     result = Ledger(tmp_path / "v.jsonl").ingest(_record(tmp_path / "r.json", "2026-09-15", [sig]), FakeData())
     row = Ledger(tmp_path / "v.jsonl").rows()[0]
     assert result.added == 1 and row["snapshot_hash"] == "h1" and row["confidence"] == 62 and row["filing_date"] is None
+
+
+def test_a_prompt_change_relogs_the_same_facts():
+    """The reason identity moved from snapshot_hash to prompt_key.
+
+    A verdict is a school's answer to a question, and the question is the
+    whole prompt — persona, model, effort and the rendered snapshot. Two
+    answers on identical facts under different instructions are different
+    events. Keying on the facts meant improving a prompt produced fresh
+    verdicts that the ledger silently discarded as repeats.
+    """
+    import tempfile
+    from pathlib import Path as _P
+
+    tmp = _P(tempfile.mkdtemp())
+    before = _record(tmp / "a.json", "2026-09-20", [_signal("fisher", "AAPL", "bullish", 70, prompt="v1")])
+    after = _record(tmp / "b.json", "2026-09-27", [_signal("fisher", "AAPL", "bullish", 70, prompt="v2")])
+    ledger = Ledger(tmp / "v.jsonl")
+
+    assert ledger.ingest(before, FakeData()).added == 1
+    assert ledger.ingest(after, FakeData()).added == 1, "a new question must log a new verdict"
+    assert len(ledger) == 2
+
+    rows = ledger.rows()
+    assert {r["event_date"] for r in rows} == {"2026-09-20", "2026-09-27"}
+    assert len({r["key"] for r in rows}) == 2
+
+
+def test_an_unchanged_prompt_still_deduplicates():
+    """The protection that must survive the change: a school re-asked the
+    identical question between filings is a cache hit, not a new verdict."""
+    import tempfile
+    from pathlib import Path as _P
+
+    tmp = _P(tempfile.mkdtemp())
+    rec = _record(tmp / "a.json", "2026-09-20", [_signal("fisher", "AAPL", "bullish", 70, prompt="v1")])
+    again = _record(tmp / "b.json", "2026-09-27", [_signal("fisher", "AAPL", "bullish", 70, prompt="v1")])
+    ledger = Ledger(tmp / "v.jsonl")
+
+    assert ledger.ingest(rec, FakeData()).added == 1
+    result = ledger.ingest(again, FakeData())
+    assert (result.added, result.skipped) == (0, 1)
+
+
+def test_a_row_without_a_prompt_key_falls_back_to_the_snapshot():
+    """Rows written before prompt_key existed keep working."""
+    import tempfile
+    from pathlib import Path as _P
+
+    tmp = _P(tempfile.mkdtemp())
+    sig = _signal("fisher", "AAPL", "bullish", 70)
+    del sig["metadata"]["prompt_key"]
+    ledger = Ledger(tmp / "v.jsonl")
+    assert ledger.ingest(_record(tmp / "a.json", "2026-09-20", [sig]), FakeData()).added == 1
+    assert ledger.rows()[0]["key"] == "fisher|AAPL|h1"

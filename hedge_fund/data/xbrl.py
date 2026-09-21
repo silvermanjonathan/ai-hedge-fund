@@ -105,6 +105,21 @@ WEIGHTED_SHARES = ("WeightedAverageNumberOfDilutedSharesOutstanding", "WeightedA
 SHARES_OUTSTANDING = ("CommonStockSharesOutstanding",)
 DEI_SHARES_OUTSTANDING = "EntityCommonStockSharesOutstanding"  # dei taxonomy, unit shares
 
+# Bump this whenever the tag tuples above, or the arithmetic in build_rows,
+# change what a row contains. It goes into the metrics cache key, so a stale
+# cache invalidates itself rather than silently serving values derived by the
+# old mapping.
+#
+# Without it --refresh-data was load-bearing: the Sept 2026 mapping fix
+# recovered nothing until the cache was refreshed by hand, and a run that
+# forgot the flag re-measured old data at full price with nothing in the
+# output to say so. Too sharp an edge to leave on a flag.
+#
+# 1  original mapping
+# 2  Sept 2026: CostOfGoodsAndServiceExcludingDDA, five debt tags,
+#    PaymentsForCapitalImprovements, total_debt current-pieces fallthrough
+DERIVATION_VERSION = 2
+
 
 @dataclass(frozen=True)
 class Fact:
