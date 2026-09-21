@@ -594,7 +594,57 @@ is still open:
    school should not lose its seat for abstaining until it is clear
    abstaining did not help.
 
-8. **Should a live run record its own verdicts?** See the assessment
+8. **The `insufficient` verdicts name blank snapshot COLUMNS, not missing
+   analysis. This is a data-layer defect, not a method mismatch.** Read
+   all 35 `insufficient` theses from 2026-09-20. They do not ask for
+   segment disclosure, asset detail or anything the snapshot was never
+   designed to carry. They name fields `PeriodFundamentals` already has,
+   which arrived empty: *"no book value per share, no free cash flow per
+   share, no debt/equity, and no market cap or P/E"*; *"three of my five
+   legs are blank"*; *"every other pillar I depend on is blank"*.
+
+   Measured across all 78 names, fields with NO value in any period:
+
+   | Field | Names affected | |
+   |---|---:|---:|
+   | `debt_to_equity` | 32 | **41%** |
+   | `gross_margin` | 28 | **36%** |
+   | `current_ratio` | 15 | 19% |
+   | `operating_margin` | 13 | 17% |
+   | `market_cap`, `price_to_earnings_ratio`, `book_value_per_share`, `free_cash_flow_per_share` | 9 each | 12% |
+   | `return_on_equity`, `earnings_per_share` | 0 | 0% |
+
+   Only 23 of 78 names (29%) have a complete snapshot.
+
+   **That explains the value/quality split without any claim about the
+   methods.** Value methods lean on P/E, book value (for P/B) and
+   debt/equity — the most-missing fields. Quality methods lean on ROE, net
+   margin and EPS — the best-populated. The earlier hypothesis in this
+   document, that deep value needs data EDGAR cannot serve, was wrong.
+
+   Two distinct causes, both fixable, neither yet fixed:
+
+   *Extraction is dropping data EDGAR provides.* NYT reports `GrossProfit`,
+   `CostOfRevenue`, `LongTermDebtNoncurrent` and `DebtCurrent` in
+   companyfacts, and its snapshot still shows no gross margin. The tags
+   are present and the values are not reaching the row, so something in
+   the quarter/TTM assembly is rejecting them. Not diagnosed further.
+
+   *Absent means unknown, and unknown renders like missing.*
+   `xbrl.total_debt` returns None "when nothing is tagged", which is the
+   right call for a data layer that refuses to invent figures — a missing
+   tag is not proof of zero debt. But `render()` prints None as `-`, so a
+   debt-free company and a company with unreadable debt data look
+   identical, and a school reading `D/E: -` says it cannot assess
+   leverage. Zoom, which carries no debt tags at all, is in the 41%.
+   Distinguishing "none" from "unknown" in the snapshot would recover part
+   of that column without inventing anything.
+
+   This is the highest-value open item here: it is measurable, it is
+   upstream of the scorecard, and 41% of a column is a large fraction of
+   why four schools abstain.
+
+9. **Should a live run record its own verdicts?** See the assessment
    accompanying this branch: `aihf <mandate> --tickers` discards its
    CycleRecord unless `--out` is passed, so a hand-run desk produces paid
    LLM verdicts that never reach the ledger. 101 of them exist only as
