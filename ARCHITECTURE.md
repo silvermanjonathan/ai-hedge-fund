@@ -545,6 +545,38 @@ reads very differently from "n=22 over 9 dates spanning 300 days", and
 neither needs new data. Not built; noted as the smallest thing that would
 stop this section being the only record.
 
+### Two numbers that are anchored, not absolute
+
+Both live in `scripts/weekly.sh` and both are conditioned on the universe
+as it stood in September 2026 (quality 55, value 24, union 78). Screen
+membership churns as fundamentals move names across the thresholds, so
+each should be re-derived if the screens grow materially.
+
+**`HEDGE_FUND_MAX_COST` = $10.** Derived from filing dates, not guessed.
+Read every filed period for all 78 names out of the EDGAR cache, bucket
+the filing dates by ISO week, and count the calls each week would trigger
+— a name filing invalidates its snapshot for every school that sees it,
+which is 5 calls for a name on one desk and 9 for a name on both, the
+resilience desk seeing the union. The busiest week in four years re-prices
+34 names: 174 calls, about $4.67. The ceiling clears that twice over while
+still refusing a full invalidation of all three desks (~$10.50).
+
+The failure mode this guards is specific and was nearly shipped: at the
+earlier $3 default an ordinary earnings week would have been refused, and
+because the runner uses `set -e`, that refusal aborts before the ingest
+and the scorecard. Unattended, into a log nobody opens. A cost gate whose
+own refusal is the silent outage is worse than no gate, which is why the
+same change added the `LAST-RUN-FAILED` marker that the following run
+reports.
+
+**`AIHF_LEDGER_SINCE` = 2026-09-20**, the date the universe widened. A
+literal in the script rather than an environment variable, because the
+LaunchAgent runs with its own environment and never sees a shell profile —
+a cutoff exported in a terminal would be silently absent on the next
+Monday, and the September pilot would quietly rejoin both the scorecard
+and the playbook. That is the leak §12 already describes, re-entering
+through configuration instead of code.
+
 ### A principle worth stating
 
 The `classify()` correction in the coverage work generalizes, and it is the

@@ -11,11 +11,21 @@ set -euo pipefail
 REPO=${AIHF_REPO:-$(cd "$(dirname "$0")/.." && pwd)}
 HOME_DIR="$HOME/.hedge-fund"
 DATE=$(date +%F)
-# Ledger cutoff. Set AIHF_LEDGER_SINCE to the date of the first widened run
-# once the universe changes: verdicts from before it grade schools on names
-# they will never see again, against a bar built from a different screen.
-# Empty means "count everything", which is right until that first run.
-SINCE=${AIHF_LEDGER_SINCE:-}
+# Ledger cutoff, baked in rather than inherited.
+#
+# 2026-09-20 is the date the universe widened from --limit 10 to the whole
+# screen. Verdicts before it grade schools on ten alphabetically-first
+# names, against a universe bar built from a screen that no longer exists,
+# so they are not comparable with anything after it. The 100 rows from the
+# 2026-09-15 pilot stay in the ledger as history and simply fall outside
+# this window.
+#
+# It is a literal here on purpose. This script runs from a LaunchAgent with
+# its own environment: it never sees a shell profile, so a cutoff exported
+# in a terminal would be silently absent on Monday and September would
+# quietly rejoin the scorecard and the playbook. AIHF_LEDGER_SINCE still
+# overrides for a one-off.
+SINCE=${AIHF_LEDGER_SINCE:-2026-09-20}
 SINCE_ARG=()
 [ -n "$SINCE" ] && SINCE_ARG=(--since "$SINCE")
 
@@ -24,13 +34,20 @@ SINCE_ARG=()
 # invocation. A manual seeding run must not inherit the weekly ceiling and
 # discover it as a refusal.
 #
-# $10 is sized from the filing dates of all 78 names. Earnings cluster hard:
-# the busiest week in four years of history re-prices 34 of them, which is
-# 174 calls and about $4.67. A $3 ceiling would have refused that week and,
-# under `set -e`, aborted before the ingest — the gate becoming the outage.
-# $10 clears the observed peak twice over while still refusing a full
-# invalidation of all three desks (~$10.50), which is the runaway worth
-# catching.
+# $10, and here is what the number is anchored to.
+#
+# Earnings cluster hard. Across four years of filing history for the 78
+# names in today's two screens, the busiest single week re-prices 34 of
+# them — 174 calls, about $4.67. The previous $3 default would have refused
+# that week, and under `set -e` aborted before the ingest: the gate
+# becoming the outage. $10 clears the observed peak roughly twice over
+# while still refusing a full invalidation of all three desks (~$10.50),
+# which is the runaway actually worth catching.
+#
+# It is conditioned on a universe of roughly this size (quality 55, value
+# 24, union 78). Screen membership churns as fundamentals move names in and
+# out, so re-derive it if the screens grow materially; the method is in
+# ARCHITECTURE.md §12.
 export HEDGE_FUND_MAX_COST=${AIHF_WEEKLY_MAX_COST:-10.00}
 
 # Failure has to reach a human. This script runs unattended from a
