@@ -546,10 +546,53 @@ is still open:
    better than anyone's, the high rate was just noise about coverage. The
    scorecard can answer it once there are 20 scored calls.
 
-   Written down now, with the baseline above, so it is decided on evidence
-   rather than under pressure when the first numbers land. A school should
-   not lose its seat for abstaining until it is clear abstaining did not
-   help.
+   **What it costs in time, per school.** A school only scores on
+   directional calls, so its observed directional rate sets how long it
+   takes to reach `min_calls=20`. At the 2026-09-20 rates, with names
+   filing quarterly and the universes as they stand (quality 56, value 23,
+   union 78):
+
+   | School | Verdicts | Directional | Rate | Names needed for 20 in one pass | Has | Months to 20 |
+   |---|---:|---:|---:|---:|---:|---:|
+   | dalio_resilience | 59 | 34 | 58% | 35 | 78 | **1.3** |
+   | fisher | 46 | 24 | 52% | 38 | 56 | 2.1 |
+   | fundsmith | 46 | 16 | 35% | 58 | 56 | 3.1 |
+   | quality_compounder | 46 | 15 | 33% | 61 | 56 | 3.3 |
+   | akre | 46 | 11 | 24% | 84 | 56 | 4.5 |
+   | dreman | 14 | 7 | 50% | 40 | 23 | 5.2 |
+   | schloss | 14 | 6 | 43% | 47 | 23 | 6.1 |
+   | pabrai | 14 | 5 | 36% | 56 | 23 | 7.3 |
+   | klarman | 14 | 3 | 21% | 93 | 23 | **12.2** |
+
+   The spread is nine-fold, and it is not noise about sample size: it is
+   the schools disagreeing about how often the data supports a call.
+   Klarman needs four times the universe it has, and a full year at the
+   current one, before its first row can be read.
+
+   **The value desk is the pattern, not klarman.** All four value schools
+   sit at the slow end — 5.2, 6.1, 7.3, 12.2 months — against 1.3 to 4.5
+   for the quality side. They also carry the highest `insufficient` rates
+   (14%, 29%, 21%, 36% against 0-17%). Two explanations fit. The value
+   screen is a third the size of the quality screen, which alone slows
+   everything proportionally. But the `insufficient` rates are a
+   per-verdict rate and so are size-independent, and they are systematically
+   higher — which points at the data rather than the universe: a deep-value
+   method leans on balance-sheet detail, segment disclosure and asset
+   quality that a TTM ratio snapshot does not carry, while a
+   quality-compounding method mostly needs margins and returns on capital,
+   which it does.
+
+   If that reading is right it is a finding about the data source, not
+   about Klarman, and widening the value screen will not fix it — the rate
+   would hold and only the clock would move. The test is the same one
+   above: whether the judged calls score. Enlarging the value universe is
+   worth doing regardless, and would separate the size effect from the
+   data-fit effect within a quarter.
+
+   Written down now, with the baselines above, so it is decided on
+   evidence rather than under pressure when the first numbers land. A
+   school should not lose its seat for abstaining until it is clear
+   abstaining did not help.
 
 8. **Should a live run record its own verdicts?** See the assessment
    accompanying this branch: `aihf <mandate> --tickers` discards its

@@ -30,7 +30,9 @@ INDEX = {d: i for i, d in TRADING}
 
 
 def close(ticker, d):
-    return 100.0 * (1 + DRIFT[ticker]) ** INDEX[d]
+    # Unknown tickers are flat. Cohort-size tests need filler names whose
+    # only job is to make the universe bar a mean rather than a comparison.
+    return 100.0 * (1 + DRIFT.get(ticker, 0.0)) ** INDEX[d]
 
 
 class FakeData:
@@ -159,14 +161,56 @@ def test_a_thin_unstaffed_sample_is_ad_hoc_not_provisional(tmp_path):
 
 
 def test_universe_relative_mean(tmp_path):
-    # Same school, desk, day: UP (bullish) and FLAT (neutral).
-    # Universe mean = (r_UP + 0) / 2, so UP beats it by r_UP / 2.
-    rows = [_row("a", "UP", "bullish", 80, 0), _row("a", "FLAT", "neutral", 50, 0)]
+    """One bullish riser against three flat names: the bar is r_UP / 4, so
+    the call beats it by three quarters of its own return. Four names is
+    the smallest cohort MIN_UNIVERSE_COHORT admits."""
+    rows = [_row("a", "UP", "bullish", 80, 0)] + [
+        _row("a", f"FLAT{i}", "neutral", 50, 0, key=f"f{i}") for i in range(3)
+    ]
     card = scorecard(_ledger(tmp_path, rows), FakeData(), _today(40), horizons=(21,), min_calls=1)
     a = _find(card, "a", 21)
     r_up = 1.01**21 - 1
-    assert a.mean_vs_universe == pytest.approx(r_up / 2, rel=1e-6)
+    assert a.mean_vs_universe == pytest.approx(r_up - r_up / 4, rel=1e-6)
     assert a.mean_signed == pytest.approx(r_up, rel=1e-6)  # SPY is flat
+    assert a.n_vs_universe == 1
+
+
+@pytest.mark.parametrize("cohort", [1, 2, 3])
+def test_a_cohort_below_the_floor_reports_no_universe_bar(tmp_path, cohort):
+    """The dilution this prevents.
+
+    Rows are dated by the cycle that made them and a cycle only writes rows
+    for names whose snapshot changed, so over 269 weeks of real filing
+    history the median cohort is ONE. At one name the bar is raw - raw = 0
+    exactly; at two it is half the pairwise spread whatever the school
+    said. Scoring those as 0.0 would pull every school's mean toward zero
+    and compress the differences the metric exists to show, so the honest
+    answer is None.
+    """
+    rows = [_row("a", "UP", "bullish", 80, 0)] + [
+        _row("a", f"N{i}", "neutral", 50, 0, key=f"n{i}") for i in range(cohort - 1)
+    ]
+    card = scorecard(_ledger(tmp_path, rows), FakeData(), _today(40), horizons=(21,), min_calls=1)
+    a = _find(card, "a", 21)
+
+    assert a.mean_vs_universe is None
+    assert a.n_vs_universe == 0
+    assert a.n == 1, "the verdict still scores against SPY; only the universe bar is withheld"
+    assert a.mean_signed is not None
+
+
+def test_a_school_mixes_graded_and_ungraded_cohorts(tmp_path):
+    """Real ledgers have both. The mean must cover only the graded ones,
+    and n_vs_universe must say how many that was — otherwise the dilution
+    is invisible rather than absent."""
+    big = [_row("a", "UP", "bullish", 80, 0)] + [_row("a", f"F{i}", "neutral", 50, 0, key=f"f{i}") for i in range(3)]
+    lone = [_row("a", "SOLO", "bullish", 80, 1, key="solo")]  # its own event_date
+    card = scorecard(_ledger(tmp_path, big + lone), FakeData(), _today(40), horizons=(21,), min_calls=1)
+    a = _find(card, "a", 21)
+
+    assert a.n == 2  # both score against SPY
+    assert a.n_vs_universe == 1  # only the four-name cohort has a bar
+    assert a.mean_vs_universe is not None
 
 
 def test_render_and_json(tmp_path):

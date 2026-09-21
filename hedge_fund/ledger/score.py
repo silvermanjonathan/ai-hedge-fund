@@ -61,6 +61,22 @@ STATUS_HORIZON = 63
 # spanning Thanksgiving, Christmas and New Year can eat that — leaving
 # fewer than 21 bars, which makes the verdict silently unscorable rather
 # than raising. ~13 trading days of margin at every horizon now.
+# Smallest cohort that makes the universe bar a mean rather than a
+# comparison. A verdict is graded against the equal-weight return of the
+# names sharing its (school, desk, event_date) group; at one name that is
+# raw - raw = 0 by construction, and at two it is half the pairwise spread
+# whatever the school said. Four leaves at least three others in the
+# average.
+#
+# This matters more than it sounds: rows are dated by the cycle that made
+# them and a cycle only writes rows for names whose snapshot changed, so
+# over 269 weeks of quality-screen history the MEDIAN cohort is 1 and only
+# 29% of weeks clear this floor. Below it the answer is None, not 0.0 —
+# zeros would pull every school's mean toward zero and compress exactly
+# the differences the metric exists to show. See ARCHITECTURE.md §11.6 for
+# the standing-position design that would fix the cause.
+MIN_UNIVERSE_COHORT = 4
+
 _CALENDAR_STRETCH = 1.5  # calendar days per trading day (252/365 ~ 1.45)
 _CALENDAR_PAD = 14  # absorbs any holiday cluster in the window
 
@@ -76,6 +92,7 @@ class ScoreRow:
     conf_weighted_mean: float | None
     stderr: float | None
     mean_vs_universe: float | None
+    n_vs_universe: int  # verdicts whose cohort cleared MIN_UNIVERSE_COHORT
     neutral_share: float | None
     insufficient_share: float | None
     coverage: str
@@ -243,7 +260,7 @@ def scorecard(
         for h in horizons:
             if (r["key"], h) in raw:
                 groups[(r["school"], r["desk"], r["event_date"], h)].append(raw[(r["key"], h)])
-    universe_mean = {g: sum(v) / len(v) for g, v in groups.items()}
+    universe_mean = {g: (sum(v) / len(v) if len(v) >= MIN_UNIVERSE_COHORT else None) for g, v in groups.items()}
 
     stats: dict[tuple[str, int], list[tuple[float, float, float]]] = defaultdict(
         list
@@ -256,10 +273,9 @@ def scorecard(
             if (r["key"], h) not in raw:
                 continue
             excess = raw[(r["key"], h)] - spy[(r["event_date"], h)]
-            vs_universe = raw[(r["key"], h)] - universe_mean[(r["school"], r["desk"], r["event_date"], h)]
-            stats[(r["school"], h)].append(
-                (direction * excess, (r.get("confidence") or 0.0) / 100.0, direction * vs_universe)
-            )
+            bar = universe_mean[(r["school"], r["desk"], r["event_date"], h)]
+            vs_universe = None if bar is None else direction * (raw[(r["key"], h)] - bar)
+            stats[(r["school"], h)].append((direction * excess, (r.get("confidence") or 0.0) / 100.0, vs_universe))
 
     def summary(school: str, h: int) -> dict:
         xs = stats.get((school, h), [])
@@ -273,9 +289,13 @@ def scorecard(
                 "conf_weighted_mean": None,
                 "stderr": None,
                 "mean_vs_universe": None,
+                "n_vs_universe": 0,
             }
         signed = [x[0] for x in xs]
         weights = [x[1] for x in xs]
+        # Only verdicts whose cohort cleared MIN_UNIVERSE_COHORT are graded
+        # against the universe; the rest have no honest bar to grade against.
+        graded = [x[2] for x in xs if x[2] is not None]
         return {
             "n": n,
             "hit_rate": sum(1 for v in signed if v > 0) / n,
@@ -285,7 +305,8 @@ def scorecard(
             if sum(weights) > 0
             else None,
             "stderr": (statistics.stdev(signed) / math.sqrt(n)) if n >= 2 else None,
-            "mean_vs_universe": sum(x[2] for x in xs) / n,
+            "mean_vs_universe": (sum(graded) / len(graded)) if graded else None,
+            "n_vs_universe": len(graded),
         }
 
     out: list[ScoreRow] = []
