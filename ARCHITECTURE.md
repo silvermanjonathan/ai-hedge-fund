@@ -451,9 +451,10 @@ is still open:
 3. Should `python -m hedge_fund.backtesting` and `python -m
    hedge_fund.event_study` become documented console scripts, or stay
    private dev tools? Both are fd-only in practice today.
-4. When is the `PriceSource` swap worth doing? It is now on the critical
-   path for `druckenmiller` and two library strategies, not just a data
-   upgrade (§12).
+4. When is the `PriceSource` swap worth doing? A dependency change on its
+   own merits only — terms of use and reliability. It is NOT on
+   `druckenmiller`'s critical path; that correction is in §11.8 and
+   §11.11. Deferred indefinitely on that basis.
 5. **Should the test suite isolate `HOME`?** A test that reads a default
    under `~/.hedge-fund/` passes on a developer machine, where the
    directory is populated, and fails on a clean runner. This is not
@@ -762,7 +763,92 @@ is still open:
    visible time cost, which makes prompt discipline mechanical instead of
    remembered.
 
-10. **Should a live run record its own verdicts?** See the assessment
+10. **Eight persona prompts never defined confidence, and confidence sizes
+    the position. This was a live correctness bug, not a polish item.**
+
+    CLAUDE.md states the invariant: *"Confidence is conviction in the
+    emitted signal, not attractiveness; a confident bearish call scores
+    high."* An audit in Sept 2026 found only 10 of 18 prompts say so.
+    Missing it: `buffett`, `chanos`, `damodaran`, `druckenmiller`,
+    `earnings_quality_skeptic`, `graham`, `lynch`, `munger`.
+
+    It is not a scorecard-weighting nicety. `LLMAgent._to_signal` computes
+    `value = sign × confidence / 100`, so confidence **sizes the
+    position**. A school reading confidence as "how much I like this
+    company" gives a bearish call low confidence, and the book takes a
+    small short where the school meant a large one. The weights are
+    systematically wrong for those eight, in a direction that depends on
+    the call.
+
+    **`chanos` and `earnings_quality_skeptic` — the two dedicated bearish
+    schools — are both in the list.** A forensic short-seller reading
+    confidence that way gives its best shorts the lowest weight. The
+    scorecard would then show the school being wrong, and it would have
+    lost its seat for a defect in its instructions rather than in its
+    judgment. That is precisely the failure this whole apparatus exists to
+    prevent, and it sat in the prompts the entire time, invisible until
+    someone asked what the prompts do NOT say.
+
+    The general lesson is the one worth keeping: the audit that found it
+    was not "is this prompt good?" but "what does every school plainly
+    need that nobody wrote?" Absences do not show up in review of what is
+    present.
+
+    Fixed in the Sept 2026 re-seed. Enforced afterwards by
+    `test_persona_contract.py`, which now asserts the clause in all 18.
+
+11. **`druckenmiller`: design the snapshot price block, or retire the
+    school.** Recorded as a decision waiting, not a permanent pending
+    item. The blocker is not external — prices are fetched and the
+    snapshot never asks for them (§11.8 correction, and see
+    `hedge_fund/roster.py`). What is missing is a design: which window,
+    how to summarise a series without bloating all 18 prompts, and
+    whether changing the snapshot for every school to serve one is worth
+    it.
+
+    The cost is known and is why it was left out of the Sept 2026 change:
+    under the rule-3 scorer a snapshot change costs a full re-seed AND
+    resets every in-flight horizon. So the two branches are:
+
+    - *Design the price block.* Unblocks `druckenmiller` and the
+      `inflections` and `fundamental-ls` strategies. Pay a re-seed and
+      restart every school's clock.
+    - *Retire the school.* If in six months the answer is that a price
+      series is not worth restarting the clock for, `druckenmiller` comes
+      out of `ALPHA_MODEL_REGISTRY` rather than sitting blocked forever,
+      and the two strategies are re-staffed or dropped with it.
+
+    Either is a fine answer. Carrying it as "blocked" indefinitely is not,
+    which is what this entry exists to prevent.
+
+12. **`--effort` stays at `low`, on evidence.** Settled Sept 2026 by
+    probe rather than by budget habit, because `--effort` is in
+    `prompt_key` and changing it later is a full re-seed plus a horizon
+    reset under rule 3.
+
+    Three schools chosen for differing observed behaviour (`fisher`, 0%
+    insufficient and most decisive; `klarman`, most neutral and most
+    insufficient; `fundsmith`, mid-range) over two deliberately thin
+    snapshots (`ZM`, genuinely absent debt; `TROW`, a Financial with
+    inapplicable columns), at `low` and `medium`:
+
+    - **signal identical in all six pairs**
+    - **`basis` identical in all six** — the neutral calls did not move,
+      in direction or in count
+    - confidence moved in three pairs by ≤10 points, in both directions
+    - output length essentially unchanged (846 → 803 chars mean)
+    - latency up 25% (8.2s → 11.8s)
+
+    The pre-probe estimate that medium would cost $10-16 per re-seed
+    through inflated thinking tokens was wrong: output length did not
+    rise, so medium is roughly cost-neutral and buys latency only.
+
+    *Caveat, so this is not over-read:* n=6 pairs, thin snapshots only,
+    one model. It says medium changes nothing measurable on the hardest
+    cases, not that effort never matters. Re-open it on evidence, not on
+    a hunch.
+
+13. **Should a live run record its own verdicts?** See the assessment
    accompanying this branch: `aihf <mandate> --tickers` discards its
    CycleRecord unless `--out` is passed, so a hand-run desk produces paid
    LLM verdicts that never reach the ledger. 101 of them exist only as
@@ -773,7 +859,7 @@ abandoned (~Dec 2026). `event_study/` is wanted and its library is
 complete; only its demo CLI drifted. `BacktestEngine` was retained
 deliberately. The persona hard-rules tail was verified across all 18.
 `druckenmiller` is neither staffed nor deleted — it is recorded as blocked
-on a price-action seam (§12).
+on a snapshot price block (§11.11).
 
 ---
 
@@ -943,8 +1029,8 @@ only, and don't pretend otherwise."*
   produces a scorecard row that *looks* like evidence about the school and
   is really evidence about the missing input. Worse than no row, because a
   row invites comparison against schools that do have what they need.
-- **Not deleted.** The school becomes viable the moment a price-action
-  seam exists. Deleting it would throw away a persona, two library
+- **Not deleted.** The school becomes viable once the snapshot carries a
+  price block — a design task, not a missing data source (§11.11). Deleting it would throw away a persona, two library
   strategies wired for it, and the reasoning above.
 
 It is now `BLOCKED` in `hedge_fund/roster.py`, which records what it waits
@@ -952,14 +1038,14 @@ on and which strategies are already wired for it, and the scorecard prints
 it every week as `blocked` — visible, explained, and not mistaken for a
 school that failed.
 
-**This makes the price seam more than a data-quality upgrade.** It is
-listed in the README as a possible swap — *"A Finviz Elite price export
-could replace yfinance behind the `PriceSource` seam in
-`hedge_fund/data/prices.py`"* — which reads as better bars for the same
-job. It is also the unblock for a school the desk is currently carrying
-inert, and for the `inflections` and `fundamental-ls` strategies, neither
-of which can be run honestly without it. Whoever scopes that work should
-know they are enabling a capability, not just improving a feed.
+**Corrected (Sept 2026): the yfinance/Finviz swap is NOT the unblock.**
+An earlier version of this section said it was. Scoping it showed the
+premise was wrong — prices are already fetched, `get_prices` returns
+daily bars today, and `build_snapshot` simply never calls them. The swap
+is a dependency change on its own merits (terms of use, reliability) and
+enables nothing here; it is deferred indefinitely on that basis. What
+`druckenmiller` waits on is a price block IN THE SNAPSHOT, which is a
+design task with known inputs. See §11.11.
 
 ### The wider pattern: nine of eighteen
 

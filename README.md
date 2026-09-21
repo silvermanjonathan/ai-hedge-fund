@@ -43,7 +43,7 @@ The app asks for keys the first time it needs them and saves them to `~/.hedge-f
 
 Keys exported in your shell always win over the saved file.
 
-The free source has no earnings-surprise data, so the `pead` model (the example mandate's earnings-drift strategy) needs `--data fd`; the CLI says so before running. Its fundamentals are dated by the 10-Q/10-K that first reported them and never restated, which keeps a backtest point-in-time and its LLM cache stable. A Finviz Elite price export could replace yfinance behind the `PriceSource` seam in `hedge_fund/data/prices.py`.
+The free source has no earnings-surprise data, so the `pead` model (the example mandate's earnings-drift strategy) needs `--data fd`; the CLI says so before running. Its fundamentals are dated by the 10-Q/10-K that first reported them and never restated, which keeps a backtest point-in-time and its LLM cache stable. A Finviz Elite price export could replace yfinance behind the `PriceSource` seam in `hedge_fund/data/prices.py` — a dependency swap on its own merits, not a capability change: it would move `market_cap` and `P/E` only by however two vendors' closes differ.
 
 ## How to Run
 
