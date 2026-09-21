@@ -13,6 +13,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from hedge_fund.data import xbrl
 from hedge_fund.data.prices import DailyHistory
 from hedge_fund.data.xbrl import (
     build_rows,
@@ -398,3 +399,76 @@ def test_merge_companyfacts_keeps_first_reported_values():
     assert "2023-03-31" in rows and "2024-09-30" in rows  # history from both filers
     assert rows["2023-09-30"].filing_date == "2023-11-03"  # predecessor's original filing, not the comparative
     assert rows["2024-09-30"].net_margin == approx(58 / 580)
+
+
+# ---------------------------------------------------------------------------
+# Debt assembly — named for the filers that break it, not the lines
+# ---------------------------------------------------------------------------
+
+
+def _debt_book(**tags):
+    """A FactBook carrying only the given instant tags, one fact each."""
+    facts = {
+        tag: {"units": {"USD": [{"end": "2026-06-30", "val": val, "filed": "2026-08-01", "accn": "a", "form": "10-Q"}]}}
+        for tag, val in tags.items()
+    }
+    return xbrl.FactBook({"facts": {"us-gaap": facts}})
+
+
+END, CUTOFF = date(2026, 6, 30), date(2026, 9, 1)
+
+
+def test_filer_with_only_short_term_borrowings():
+    """The case the original fallthrough missed.
+
+    total_debt skipped the current pieces whenever there was no noncurrent
+    tag, because LongTermDebt is the whole when it exists and adding the
+    pieces would double count. But when LongTermDebt is absent TOO, that
+    returned None — so a filer whose only borrowing is short-term read as
+    having no debt at all, and its debt/equity came back blank. Two of the
+    78 screened names were in exactly this state.
+    """
+    book = _debt_book(ShortTermBorrowings=250.0, StockholdersEquity=1000.0)
+    assert xbrl.total_debt(book, END, CUTOFF) == 250.0
+
+
+def test_filer_with_only_a_current_debt_tag():
+    book = _debt_book(DebtCurrent=400.0)
+    assert xbrl.total_debt(book, END, CUTOFF) == 400.0
+
+
+def test_long_term_debt_is_still_the_whole_and_pieces_are_not_added():
+    """The behaviour the fallthrough was protecting. LongTermDebt already
+    includes the current portion for these filers, so adding
+    LongTermDebtCurrent on top would double count it."""
+    book = _debt_book(LongTermDebt=900.0, LongTermDebtCurrent=100.0)
+    assert xbrl.total_debt(book, END, CUTOFF) == 900.0
+
+
+def test_noncurrent_plus_current_when_both_are_reported():
+    book = _debt_book(LongTermDebtNoncurrent=800.0, DebtCurrent=150.0)
+    assert xbrl.total_debt(book, END, CUTOFF) == 950.0
+
+
+def test_a_filer_with_no_borrowings_tagged_still_reports_nothing():
+    """Absence is not zero. Five of 34 names carried a real balance under a
+    tag the mapping did not read, so an untagged filer cannot be assumed
+    debt-free — the snapshot says 'not reported', never '0'."""
+    assert xbrl.total_debt(_debt_book(StockholdersEquity=1000.0), END, CUTOFF) is None
+
+
+@pytest.mark.parametrize(
+    "tag",
+    ["SeniorNotes", "UnsecuredLongTermDebt", "UnsecuredDebtCurrent", "ConvertibleDebtCurrent", "LinesOfCreditCurrent"],
+)
+def test_debt_tags_added_from_the_september_survey(tag):
+    """Each was found carrying a real borrowing balance for a screened name
+    whose debt/equity was blank. Named individually so removing one fails
+    loudly rather than silently re-blanking a filer."""
+    assert xbrl.total_debt(_debt_book(**{tag: 500.0}), END, CUTOFF) == 500.0
+
+
+def test_cost_of_revenue_reads_the_excluding_dda_tag():
+    """NYT and four others file cost of revenue only under this tag, so
+    gross margin was blank although the filing carried it."""
+    assert "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization" in xbrl.COST_OF_REVENUE

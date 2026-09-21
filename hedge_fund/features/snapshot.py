@@ -25,6 +25,29 @@ from hedge_fund.data.protocol import DataClient
 # than this (one year of ttm rows).
 MIN_PERIODS = 4
 
+# A blank cell used to be a single dash, which collapsed three different
+# situations into one: a figure we could not read, a figure the filer does
+# not publish, and a line that does not exist for this kind of business.
+# Personas abstained on all three, and a bank with several structurally
+# inapplicable columns read as a company with missing data.
+NOT_REPORTED = "n/r"
+NOT_APPLICABLE = "n/a"
+
+# Fields a sector does not report in a form comparable to other sectors.
+# Banks, insurers and asset managers publish no gross profit line and no
+# classified balance sheet, so gross margin and the current ratio have
+# nothing behind them; operating margin exists in some form but not one
+# that compares to an industrial's.
+#
+# Keyed on FundamentalsSnapshot.sector, which comes from the data source
+# (Finviz for screened names, EDGAR SIC otherwise). It is third-party and
+# coarse: a diversified holding company classified Financial gets n/a on a
+# gross margin it genuinely does not report, which is right by accident.
+# If that classification ever moves, this mapping moves with it.
+SECTOR_NOT_APPLICABLE: dict[str, frozenset[str]] = {
+    "Financial": frozenset({"gross_margin", "operating_margin", "current_ratio"}),
+}
+
 
 class InsufficientData(ValueError):
     """Not enough point-in-time history to build a snapshot."""
@@ -76,6 +99,11 @@ class FundamentalsSnapshot(BaseModel):
         canonical = self.model_dump_json(exclude={"as_of"})
         return hashlib.sha256(canonical.encode()).hexdigest()[:24]
 
+    def not_applicable(self, field: str) -> bool:
+        """Whether *field* is structurally absent for this company's sector
+        rather than merely unreported. See SECTOR_NOT_APPLICABLE."""
+        return field in SECTOR_NOT_APPLICABLE.get(self.sector or "", frozenset())
+
     def render(self) -> str:
         """Compact text block for the LLM prompt.
 
@@ -83,6 +111,11 @@ class FundamentalsSnapshot(BaseModel):
         prompt text, so the same fundamentals must render identically on any
         date. It also keeps the LLM from anchoring on a calendar date it
         could associate with post-date world events.
+
+        A missing figure renders as n/r or n/a rather than a bare dash, and
+        the legend tells the reader what to DO with each. Saying only that
+        the two are different leaves a persona free to treat n/r as either
+        a zero or a reason to abstain, which is the ambiguity this replaces.
         """
         lines = [
             f"Company: {self.ticker}"
@@ -91,28 +124,51 @@ class FundamentalsSnapshot(BaseModel):
             "All figures below were publicly filed by their filing dates. "
             "Treat the most recent filing shown as the present.",
             "",
+            "Two kinds of blank appear below and they mean different things:",
+            f"  {NOT_REPORTED}  Not reported: the filing carries no figure we could read for " "this period.",
+            "      It does NOT mean zero. A company with no borrowings and one whose debt is",
+            "      tagged in a way we do not read both show this, and these figures cannot",
+            "      tell them apart. Treat the measure as UNKNOWN: either say so and leave it",
+            "      out of your reasoning, or abstain on that dimension and judge on what is",
+            f"      visible. Never substitute a number, and never read {NOT_REPORTED} as a low value.",
+            f"  {NOT_APPLICABLE}  Not applicable: this line is not reported comparably by this sector.",
+            "      Banks, insurers and asset managers publish no gross profit and no classified",
+            "      balance sheet, so gross margin and current ratio have nothing behind them,",
+            "      and operating margin is not comparable to an industrial's. The question does",
+            "      not arise for this business — its absence is not a weakness, and the",
+            "      remaining columns are not a fuller picture for being fewer.",
+            "",
             "Summary:",
-            f"  Market cap (latest filed): {_fmt(self.market_cap_latest)}",
-            f"  ROE avg: {_fmt(self.roe_avg)}  |  Net margin avg: {_fmt(self.net_margin_avg)}",
-            f"  Gross margin trend (latest-oldest): {_fmt(self.gross_margin_trend)}",
-            f"  Book value/share CAGR: {_fmt(self.bvps_cagr)}",
-            f"  Debt/equity (latest): {_fmt(self.debt_to_equity_latest)}",
+            f"  Market cap (latest filed): {_fmt(self.market_cap_latest, blank=self._blank('market_cap'))}",
+            f"  ROE avg: {_fmt(self.roe_avg, blank=self._blank('return_on_equity'))}"
+            f"  |  Net margin avg: {_fmt(self.net_margin_avg, blank=self._blank('net_margin'))}",
+            "  Gross margin trend (latest-oldest): "
+            f"{_fmt(self.gross_margin_trend, blank=self._blank('gross_margin'))}",
+            "  Book value/share CAGR: " f"{_fmt(self.bvps_cagr, blank=self._blank('book_value_per_share'))}",
+            f"  Debt/equity (latest): {_fmt(self.debt_to_equity_latest, blank=self._blank('debt_to_equity'))}",
             "",
             "History (trailing-twelve-month periods, newest first):",
             "period | filed | mktcap | P/E | ROE | gross_m | op_m | net_m | D/E "
             "| curr | rev_gr | EPS | BVPS | FCF/sh",
         ]
+
+        def cell(period: PeriodFundamentals, field: str) -> str:
+            return _fmt(getattr(period, field), blank=self._blank(field))
+
         for p in self.periods:
             lines.append(
-                f"{p.report_period} | {p.filing_date or '?'} | {_fmt(p.market_cap)} "
-                f"| {_fmt(p.price_to_earnings_ratio)} | {_fmt(p.return_on_equity)} "
-                f"| {_fmt(p.gross_margin)} | {_fmt(p.operating_margin)} "
-                f"| {_fmt(p.net_margin)} | {_fmt(p.debt_to_equity)} "
-                f"| {_fmt(p.current_ratio)} | {_fmt(p.revenue_growth)} "
-                f"| {_fmt(p.earnings_per_share)} | {_fmt(p.book_value_per_share)} "
-                f"| {_fmt(p.free_cash_flow_per_share)}"
+                f"{p.report_period} | {p.filing_date or '?'} | {cell(p, 'market_cap')} "
+                f"| {cell(p, 'price_to_earnings_ratio')} | {cell(p, 'return_on_equity')} "
+                f"| {cell(p, 'gross_margin')} | {cell(p, 'operating_margin')} "
+                f"| {cell(p, 'net_margin')} | {cell(p, 'debt_to_equity')} "
+                f"| {cell(p, 'current_ratio')} | {cell(p, 'revenue_growth')} "
+                f"| {cell(p, 'earnings_per_share')} | {cell(p, 'book_value_per_share')} "
+                f"| {cell(p, 'free_cash_flow_per_share')}"
             )
         return "\n".join(lines)
+
+    def _blank(self, field: str) -> str:
+        return NOT_APPLICABLE if self.not_applicable(field) else NOT_REPORTED
 
 
 def build_snapshot(
@@ -165,9 +221,9 @@ def build_snapshot(
 # ---------------------------------------------------------------------------
 
 
-def _fmt(v: float | None) -> str:
+def _fmt(v: float | None, blank: str = NOT_REPORTED) -> str:
     if v is None:
-        return "-"
+        return blank
     if abs(v) >= 1e9:
         return f"{v / 1e9:.1f}B"
     if abs(v) >= 1e6:

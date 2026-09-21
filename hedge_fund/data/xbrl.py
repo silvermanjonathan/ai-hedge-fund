@@ -59,7 +59,15 @@ REVENUE = (
 )
 NET_INCOME = ("NetIncomeLoss", "ProfitLoss", "NetIncomeLossAvailableToCommonStockholdersBasic")
 GROSS_PROFIT = ("GrossProfit",)
-COST_OF_REVENUE = ("CostOfRevenue", "CostOfGoodsAndServicesSold", "CostOfGoodsSold")
+COST_OF_REVENUE = (
+    "CostOfRevenue",
+    "CostOfGoodsAndServicesSold",
+    "CostOfGoodsSold",
+    # Added Sept 2026 after surveying what the 78 screened names actually
+    # file. NYT and four others report cost of revenue only under this tag,
+    # so gross margin was blank for them although the filing carries it.
+    "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
+)
 OPERATING_INCOME = ("OperatingIncomeLoss",)
 EQUITY = ("StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest")
 ASSETS_CURRENT = ("AssetsCurrent",)
@@ -68,11 +76,30 @@ OPERATING_CASH_FLOW = (
     "NetCashProvidedByUsedInOperatingActivities",
     "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
 )
-CAPEX = ("PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets")
-DEBT_NONCURRENT = ("LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations")
+CAPEX = (
+    "PaymentsToAcquirePropertyPlantAndEquipment",
+    "PaymentsToAcquireProductiveAssets",
+    "PaymentsForCapitalImprovements",
+)
+# Debt tags, extended Sept 2026 from a survey of every screened name rather
+# than a sample. Five filers carried a real borrowing balance under a tag
+# none of these tuples listed, and read as having no debt at all.
+DEBT_NONCURRENT = (
+    "LongTermDebtNoncurrent",
+    "LongTermDebtAndCapitalLeaseObligations",
+    "UnsecuredLongTermDebt",
+    "SeniorNotes",
+)
 DEBT_TOTAL = ("LongTermDebt",)  # used as the whole when no noncurrent tag exists
 DEBT_CURRENT = ("DebtCurrent",)
-DEBT_CURRENT_PIECES = ("LongTermDebtCurrent", "ShortTermBorrowings", "CommercialPaper")
+DEBT_CURRENT_PIECES = (
+    "LongTermDebtCurrent",
+    "ShortTermBorrowings",
+    "CommercialPaper",
+    "UnsecuredDebtCurrent",
+    "ConvertibleDebtCurrent",
+    "LinesOfCreditCurrent",
+)
 EPS_DILUTED = ("EarningsPerShareDiluted",)  # unit USD/shares
 WEIGHTED_SHARES = ("WeightedAverageNumberOfDilutedSharesOutstanding", "WeightedAverageNumberOfSharesOutstandingBasic")
 SHARES_OUTSTANDING = ("CommonStockSharesOutstanding",)
@@ -299,13 +326,25 @@ def total_debt(book: FactBook, end: date, cutoff: date) -> float | None:
     """Noncurrent plus current borrowings. With no noncurrent tag, LongTermDebt
     is taken as the whole and the current pieces are skipped (they would
     double count). None when nothing is tagged."""
+
+    def current_debt() -> float | None:
+        explicit = instant_at(book, DEBT_CURRENT, end, cutoff)
+        if explicit is not None:
+            return explicit
+        pieces = [instant_at(book, (tag,), end, cutoff) for tag in DEBT_CURRENT_PIECES]
+        found = [p for p in pieces if p is not None]
+        return sum(found) if found else None
+
     noncurrent = instant_at(book, DEBT_NONCURRENT, end, cutoff)
     if noncurrent is None:
-        return instant_at(book, DEBT_TOTAL, end, cutoff)
-    current = instant_at(book, DEBT_CURRENT, end, cutoff)
-    if current is None:
-        current = sum(instant_at(book, (tag,), end, cutoff) or 0.0 for tag in DEBT_CURRENT_PIECES)
-    return noncurrent + current
+        # LongTermDebt is the whole when it exists, so the current pieces are
+        # skipped to avoid double counting. When it does NOT exist either,
+        # fall through to those pieces rather than returning nothing: a filer
+        # with only short-term borrowings has debt, and used to read as
+        # having none. See test_filer_with_only_short_term_borrowings.
+        whole = instant_at(book, DEBT_TOTAL, end, cutoff)
+        return whole if whole is not None else current_debt()
+    return noncurrent + (current_debt() or 0.0)
 
 
 # ---------------------------------------------------------------------------

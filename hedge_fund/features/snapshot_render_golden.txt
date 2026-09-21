@@ -1,6 +1,20 @@
 Company: TEST  |  Sector: Technology  |  Industry: Consumer Electronics
 All figures below were publicly filed by their filing dates. Treat the most recent filing shown as the present.
 
+Two kinds of blank appear below and they mean different things:
+  n/r  Not reported: the filing carries no figure we could read for this period.
+      It does NOT mean zero. A company with no borrowings and one whose debt is
+      tagged in a way we do not read both show this, and these figures cannot
+      tell them apart. Treat the measure as UNKNOWN: either say so and leave it
+      out of your reasoning, or abstain on that dimension and judge on what is
+      visible. Never substitute a number, and never read n/r as a low value.
+  n/a  Not applicable: this line is not reported comparably by this sector.
+      Banks, insurers and asset managers publish no gross profit and no classified
+      balance sheet, so gross margin and current ratio have nothing behind them,
+      and operating margin is not comparable to an industrial's. The question does
+      not arise for this business — its absence is not a weakness, and the
+      remaining columns are not a fuller picture for being fewer.
+
 Summary:
   Market cap (latest filed): 2510.0B
   ROE avg: 0.19  |  Net margin avg: 0.25
@@ -11,6 +25,6 @@ Summary:
 History (trailing-twelve-month periods, newest first):
 period | filed | mktcap | P/E | ROE | gross_m | op_m | net_m | D/E | curr | rev_gr | EPS | BVPS | FCF/sh
 2024-12-31 | 2024-12-31 | 2510.0B | 28.40 | 0.15 | 0.44 | 0.30 | 0.25 | 1.87 | 0.95 | 0.06 | 6.42 | 4.12 | 7.01
-2024-09-30 | 2024-09-30 | 8.4M | - | 0.20 | 0.44 | - | 0.25 | 0.50 | - | - | - | 4.05 | -
-2024-06-30 | 2024-06-30 | 1234.50 | - | 0.20 | 0.44 | - | 0.25 | 0.50 | - | - | - | 3.98 | -
-2024-03-31 | 2024-03-31 | - | - | 0.20 | 0.43 | - | 0.25 | 0.50 | - | - | - | 3.90 | -
+2024-09-30 | 2024-09-30 | 8.4M | n/r | 0.20 | 0.44 | n/r | 0.25 | 0.50 | n/r | n/r | n/r | 4.05 | n/r
+2024-06-30 | 2024-06-30 | 1234.50 | n/r | 0.20 | 0.44 | n/r | 0.25 | 0.50 | n/r | n/r | n/r | 3.98 | n/r
+2024-03-31 | 2024-03-31 | n/r | n/r | 0.20 | 0.43 | n/r | 0.25 | 0.50 | n/r | n/r | n/r | 3.90 | n/r

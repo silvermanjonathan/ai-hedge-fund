@@ -227,3 +227,78 @@ def test_golden_prompt_is_free_of_as_of():
     """The fixture itself must never contain a date that moves with the clock;
     if it did, the golden test would pass while the cache still broke daily."""
     assert "2025-01-15" not in GOLDEN_PATH.read_text()
+
+
+# ---------------------------------------------------------------------------
+# Three kinds of blank
+# ---------------------------------------------------------------------------
+#
+# A single dash collapsed three situations: a figure we could not read, one
+# the filer does not publish, and a line that does not exist for this kind
+# of business. Personas abstained on all three — 12% of the first widened
+# run's verdicts came back "insufficient", naming blank columns.
+
+
+def _snap(sector=None, **overrides):
+    rows = _history(6)
+    for m in rows:
+        for field, value in overrides.items():
+            setattr(m, field, value)
+    facts = CompanyFacts(ticker="TEST", sector=sector) if sector else None
+    return build_snapshot("TEST", "2025-06-30", MockDataClient(metrics=rows, facts=facts))
+
+
+def test_an_unreadable_figure_renders_not_reported():
+    text = _snap(debt_to_equity=None).render()
+    assert "n/r" in text
+    assert "It does NOT mean zero" in text
+
+
+def test_a_sector_inapplicable_field_renders_not_applicable():
+    """A bank publishes no gross profit line, so the column is empty for a
+    different reason than a missing figure."""
+    snap = _snap(sector="Financial", gross_margin=None)
+    assert snap.not_applicable("gross_margin")
+    assert snap.not_applicable("current_ratio")
+    assert not snap.not_applicable("return_on_equity")
+    assert "n/a" in snap.render()
+
+
+def test_a_non_financial_gets_not_reported_for_the_same_field():
+    """The distinction is the sector, not the field."""
+    snap = _snap(sector="Technology", gross_margin=None)
+    assert not snap.not_applicable("gross_margin")
+    # The legend always names both tokens, so check the DATA rows, not the
+    # whole block.
+    data = snap.render().split("newest first):")[1]
+    assert "n/a" not in data
+    assert "n/r" in data
+
+
+def test_a_populated_field_is_never_marked_not_applicable():
+    """SEIC is a Financial that DOES report a gross margin. The sector rule
+    only explains an absence; it must not suppress a figure."""
+    text = _snap(sector="Financial", gross_margin=0.36).render()
+    assert "0.36" in text
+
+
+def test_the_legend_tells_the_reader_what_to_do_with_each():
+    """Saying only that the two differ leaves a persona free to treat n/r
+    as a zero or as a reason to abstain. The legend has to direct it."""
+    text = _snap().render()
+    assert "Treat the measure as UNKNOWN" in text
+    assert "Never substitute a number" in text
+    assert "The question does" in text and "not arise for this business" in text
+    assert "not a fuller picture for being fewer" in text
+
+
+def test_the_blank_vocabulary_is_stable_across_as_of_dates():
+    """Whatever the blanks say, they must say it identically on any date or
+    the prompt cache stops hitting."""
+    rows = _history(6)
+    for m in rows:
+        m.debt_to_equity = None
+    a = build_snapshot("TEST", "2025-06-30", MockDataClient(metrics=rows))
+    b = build_snapshot("TEST", "2025-08-30", MockDataClient(metrics=rows))
+    assert a.render() == b.render()
+    assert a.content_hash == b.content_hash
