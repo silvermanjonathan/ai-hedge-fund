@@ -622,27 +622,52 @@ is still open:
    margin and EPS — the best-populated. The earlier hypothesis in this
    document, that deep value needs data EDGAR cannot serve, was wrong.
 
-   Two distinct causes, both fixable, neither yet fixed:
+   **Three causes, not two, and they need different fixes.** Surveyed by
+   reading what every affected name actually reports to EDGAR. An earlier
+   version of this entry claimed extraction was dropping data EDGAR
+   provides, citing NYT's `GrossProfit`. That rested on checking whether
+   the TAG existed anywhere in the filer's history rather than whether it
+   had facts in the window; NYT has reported no `GrossProfit` fact since
+   2023. Corrected below.
 
-   *Extraction is dropping data EDGAR provides.* NYT reports `GrossProfit`,
-   `CostOfRevenue`, `LongTermDebtNoncurrent` and `DebtCurrent` in
-   companyfacts, and its snapshot still shows no gross margin. The tags
-   are present and the values are not reaching the row, so something in
-   the quarter/TTM assembly is rejecting them. Not diagnosed further.
+   *(a) Unmapped tags and one logic bug — roughly 22-25%, genuinely
+   recoverable.* NYT reports cost of revenue as
+   `CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization`,
+   which `COST_OF_REVENUE` does not list; 4 of the 28 names missing gross
+   margin use it, and a few more use other variants. On the debt side, 7
+   of 32 have a real own-debt balance: about five under unmapped tags
+   (`SeniorNotes`, `LinesOfCreditCurrent`, `NotesPayable`, `LoansPayable`)
+   and two under tags that ARE mapped but never reached, because
+   `xbrl.total_debt` returns early:
 
-   *Absent means unknown, and unknown renders like missing.*
-   `xbrl.total_debt` returns None "when nothing is tagged", which is the
-   right call for a data layer that refuses to invent figures — a missing
-   tag is not proof of zero debt. But `render()` prints None as `-`, so a
-   debt-free company and a company with unreadable debt data look
-   identical, and a school reading `D/E: -` says it cannot assess
-   leverage. Zoom, which carries no debt tags at all, is in the 41%.
-   Distinguishing "none" from "unknown" in the snapshot would recover part
-   of that column without inventing anything.
+       noncurrent = instant_at(book, DEBT_NONCURRENT, end, cutoff)
+       if noncurrent is None:
+           return instant_at(book, DEBT_TOTAL, end, cutoff)   # skips current
 
-   This is the highest-value open item here: it is measurable, it is
-   upstream of the scorecard, and 41% of a column is a large fraction of
-   why four schools abstain.
+   A filer with only short-term borrowings and no noncurrent debt gets
+   None instead of its actual debt. The comment explains skipping the
+   current pieces to avoid double counting when `LongTermDebt` is present
+   — sound — but when that is absent too, falling through to the current
+   pieces is right rather than returning nothing.
+
+   *(b) Inapplicable to the business — roughly 40% of the gross-margin
+   gap.* Eleven of the 28 names missing gross margin are Financials.
+   Banks, insurers and asset managers do not report a gross profit line
+   because the concept does not apply. No tag will recover it.
+
+   *(c) Genuinely absent — roughly 78% of the debt gap.* Twenty-five of
+   the 32 names missing debt/equity report no own-debt balance under any
+   tag, concentrated in Technology (9) and Healthcare (8): debt-free
+   growth companies. DUOL and TROW tag nothing debt-like at all. The
+   correct value is zero, or near it, and the data layer is right not to
+   assert that from an absence.
+
+   **So the recoverable share is about a quarter, and three quarters of
+   the gap is a rendering problem rather than a data one.** That inverts
+   the earlier assumption that extraction was the main lever. All three
+   categories currently print as `-`, so a persona cannot tell "this filer
+   uses a tag we do not read" from "this business has no such line" from
+   "this company has no debt" — and it abstains on all three.
 
 9. **Should a live run record its own verdicts?** See the assessment
    accompanying this branch: `aihf <mandate> --tickers` discards its
