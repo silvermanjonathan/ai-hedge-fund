@@ -18,6 +18,12 @@ from hedge_fund.config import apply_credentials
 from hedge_fund.data import open_data_client
 from hedge_fund.data.edgar import EdgarClient, EdgarError
 from hedge_fund.ledger.coverage import mandate_paths, staffed_schools
+from hedge_fund.ledger.history import (
+    flips,
+    render_flips,
+    render_ticker_history,
+    ticker_history,
+)
 from hedge_fund.ledger.rules import (
     playbook,
     PlaybookConfig,
@@ -82,6 +88,23 @@ def main(argv: list[str] | None = None) -> None:
         "the scorecard: without it a name that has left the universe keeps "
         "surfacing as a candidate on a verdict from a screen that is gone.",
     )
+    p_flips = sub.add_parser(
+        "flips",
+        help="where a school changed its mind — the most precise research lead here",
+    )
+    p_flips.add_argument("--since", metavar="YYYY-MM-DD", help="only changes on or after this date")
+    p_flips.add_argument(
+        "--include-prompt-changes",
+        action="store_true",
+        help="also show signal changes on an UNCHANGED filing. Those come from "
+        "editing a prompt, not from the company: useful for judging an edit, "
+        "misleading as a research lead, and excluded by default.",
+    )
+
+    p_tick = sub.add_parser("ticker", help="everything every school has said about one name")
+    p_tick.add_argument("symbol")
+    p_tick.add_argument("--no-theses", action="store_true", help="signals only, omit the reasoning")
+
     args = parser.parse_args(argv)
 
     ledger = Ledger(args.ledger)
@@ -112,6 +135,21 @@ def main(argv: list[str] | None = None) -> None:
         if not args.json:
             where = ", ".join(p.name for p in paths) if paths else "none found"
             print(f"\nStaffing read from: {where}", file=sys.stderr)
+        return
+
+    if args.command == "flips":
+        rows = ledger.rows()
+        found = flips(rows, since=args.since, require_new_filing=not args.include_prompt_changes)
+        hidden = (
+            0
+            if args.include_prompt_changes
+            else len(flips(rows, since=args.since, require_new_filing=False)) - len(found)
+        )
+        print(render_flips(found, since=args.since, prompt_induced=hidden))
+        return
+
+    if args.command == "ticker":
+        print(render_ticker_history(ticker_history(ledger.rows(), args.symbol), args.symbol, theses=not args.no_theses))
         return
 
     if args.command == "candidates":

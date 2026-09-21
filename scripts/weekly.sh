@@ -175,6 +175,12 @@ run_desk resilience-check "$HOME_DIR/mandates/resilience-check.yaml" "$UNION"
 # (keyed on school/ticker/snapshot_hash) so it normally reports
 # added=0, and it catches up if inline logging ever fails.
 poetry run aihf-ledger ingest "$RECORDS/quality-desk-$DATE.json" "$RECORDS/value-desk-$DATE.json" "$RECORDS/resilience-check-$DATE.json"
+# Flips first: a school only changes its mind when a filing changes the
+# facts, so these are the week's research leads. Same-filing changes are
+# excluded — those come from editing a prompt and say nothing about a
+# company.
+poetry run aihf-ledger flips "${SINCE_ARG[@]}" | tee "$HOME_DIR/logs/flips-$DATE.txt"
+
 poetry run aihf-ledger candidates "${SINCE_ARG[@]}" | tee "$HOME_DIR/logs/candidates-$DATE.txt"
 # Scorecard. The three desks above are passed explicitly so coverage
 # reports "is this school accumulating calls" rather than "could some
