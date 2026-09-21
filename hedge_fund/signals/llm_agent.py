@@ -12,12 +12,36 @@ all the machinery; a persona is just a name + a system prompt:
         def get_system_prompt(self) -> str:
             return "You are Warren Buffett..."
 
-Failure contract (locked decisions):
-- Data-layer errors PROPAGATE (fail loud — a broken snapshot must never
-  silently become a neutral view).
-- LLM call/parse/refusal failures ABSTAIN: Signal(value=0.0, metadata.abstained=True).
-- Every LLM decision persists its exact prompt + response (via PromptCache),
-  and an unchanged snapshot never pays for a second LLM call.
+Failure contract (locked decisions). Two classes, and the split is the
+point: an abstention must always mean something was ASKED and no view came
+back, never that nobody asked.
+
+- ABSTAIN — the model declined, or could not be understood, or the data was
+  too thin to ask about. Signal(value=0.0, metadata.abstained=True).
+  Specifically: a refusal (stop_reason "refusal"), an unparseable response,
+  and InsufficientData.
+- PROPAGATE — everything else. Data-layer errors, and any transport,
+  auth, quota, rate-limit or timeout failure from the LLM provider. A
+  broken snapshot must never silently become a neutral view, and neither
+  must an expired API key.
+
+The default is deliberately PROPAGATE, not abstain. Until Sept 2026 this
+caught bare Exception around the LLM call, so an expired key or an
+exhausted budget produced a cohort of abstentions indistinguishable from
+schools declining names — and `Ledger.ingest` drops abstained rows, so the
+evidence never reached the ledger. An unattended run reported success with
+two thirds of its universe silently missing. Only positively identified
+model-side conditions abstain now; an unrecognised failure is assumed to be
+infrastructure, which is the safe direction and the only one that works for
+providers whose exception types we cannot enumerate.
+
+Stopping is cheap, which is what makes failing loud affordable: PromptCache
+writes per call, atomically, the moment a response parses. A run that dies
+at call 390 keeps 389 verdicts on disk, and a rerun re-reasons only what
+did not finish.
+
+Every LLM decision persists its exact prompt + response (via PromptCache),
+and an unchanged snapshot never pays for a second LLM call.
 """
 
 from __future__ import annotations
@@ -89,9 +113,11 @@ class LLMAgent(AlphaModel):
         except LLMRefusal as exc:
             logger.warning("%s refused for %s@%s: %s", self.name, ticker, date, exc)
             return self._abstain(ticker, date, "refusal")
-        except Exception as exc:
-            logger.warning("%s LLM call failed for %s@%s: %s", self.name, ticker, date, exc)
-            return self._abstain(ticker, date, f"LLM call failed: {exc}")
+        # Anything else propagates. A transport, auth, quota, rate-limit or
+        # timeout failure is infrastructure, not a view, and swallowing it
+        # would put "no opinion" in the record where "never asked" is the
+        # truth. The provider SDK has already retried what is retryable by
+        # the time an exception reaches here.
 
         record = {
             "agent": self.name,

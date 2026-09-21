@@ -34,7 +34,14 @@ logger = logging.getLogger(__name__)
 DEFAULT_MAX_TOKENS = 16000
 DEFAULT_TIMEOUT = 300.0
 # The SDK's own backoff handles the 429s that parallel analysts provoke.
-DEFAULT_MAX_RETRIES = 2
+# The SDK retries only retryable statuses (429, 5xx, 529, connection and
+# timeout errors) with exponential backoff; 401, 403 and a 400 for an
+# exhausted credit balance fail on the first call, which is what we want.
+# Raised from 2 in Sept 2026: infrastructure failures now abort a cycle
+# rather than abstaining, and at ~400 calls per seeding run even a 0.1%
+# per-call escape rate would fail roughly a third of runs. A healthy run
+# never touches these.
+DEFAULT_MAX_RETRIES = 6
 
 # The SDK refuses a non-streaming request it expects to run longer than ten
 # minutes (anthropic._base_client._calculate_nonstreaming_timeout, sized as

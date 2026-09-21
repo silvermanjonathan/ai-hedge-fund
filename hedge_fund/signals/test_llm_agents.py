@@ -76,8 +76,8 @@ def _history(n=8):
 BULLISH = json.dumps({"signal": "bullish", "confidence": 80, "reasoning": "Wonderful business."})
 
 
-def _agent(tmp_path, llm):
-    return BuffettAgent(llm=llm, cache=PromptCache(tmp_path / "llm"))
+def _agent(tmp_path, llm, cache=None):
+    return BuffettAgent(llm=llm, cache=cache or PromptCache(tmp_path / "llm"))
 
 
 # ---------------------------------------------------------------------------
@@ -117,12 +117,60 @@ def test_malformed_json_abstains(tmp_path):
     assert sig.metadata["abstained"] is True
 
 
-def test_llm_error_abstains(tmp_path):
-    agent = _agent(tmp_path, FakeLLM(error=TimeoutError("llm timed out")))
-    sig = agent.predict("TEST", "2025-01-15", MockDataClient(metrics=_history()))
-    assert sig.value == 0.0
-    assert sig.metadata["abstained"] is True
-    assert "timed out" in sig.metadata["abstain_reason"]
+@pytest.mark.parametrize(
+    "error",
+    [
+        TimeoutError("llm timed out"),
+        ConnectionError("connection reset"),
+        RuntimeError("401 authentication_error: invalid x-api-key"),
+        RuntimeError("400 invalid_request_error: credit balance is too low"),
+        RuntimeError("429 rate_limit_error"),
+    ],
+)
+def test_infrastructure_failure_propagates_rather_than_abstaining(tmp_path, error):
+    """The bug this guards is silent, not loud.
+
+    Until Sept 2026 predict() caught bare Exception here, so an expired key
+    or an exhausted budget produced a Signal(abstained=True) — identical in
+    the record to a school declining a name. Ledger.ingest drops abstained
+    rows, so the evidence never reached the ledger either: an unattended run
+    reported success with most of its universe silently missing, and the
+    scorecard read it as schools passing on names nobody had asked about.
+
+    Nothing is caught here now. run_cycle's fan-out cancels the remaining
+    futures and the cycle dies before a CycleRecord exists, so there is no
+    partial cohort to mis-read.
+    """
+    agent = _agent(tmp_path, FakeLLM(error=error))
+    with pytest.raises(type(error)):
+        agent.predict("TEST", "2025-01-15", MockDataClient(metrics=_history()))
+
+
+def test_an_unrecognised_failure_propagates(tmp_path):
+    """The default is propagate, not abstain.
+
+    Enumerating provider exception types would only ever cover Anthropic;
+    every other provider raises its own. So anything not positively
+    identified as model-side is treated as infrastructure — the safe
+    direction, and the one that does not rot as providers change."""
+
+    class SomeNewProviderError(Exception):
+        pass
+
+    agent = _agent(tmp_path, FakeLLM(error=SomeNewProviderError("who knows")))
+    with pytest.raises(SomeNewProviderError):
+        agent.predict("TEST", "2025-01-15", MockDataClient(metrics=_history()))
+
+
+def test_a_failed_call_is_not_cached_as_a_verdict(tmp_path):
+    """A propagating failure must leave no trace a rerun would trust."""
+    from hedge_fund.llm import PromptCache
+
+    cache_dir = tmp_path / "llm"
+    agent = _agent(tmp_path, FakeLLM(error=TimeoutError("boom")), cache=PromptCache(cache_dir))
+    with pytest.raises(TimeoutError):
+        agent.predict("TEST", "2025-01-15", MockDataClient(metrics=_history()))
+    assert not list(cache_dir.glob("*.json")), "a failed call wrote a cache entry"
 
 
 def test_refusal_abstains_with_reason_refusal(tmp_path):

@@ -38,9 +38,11 @@ def blend_signals(
 
         conviction_t = sum(w_m * value_mt) / sum(w_m)
 
-    An abstained signal (metadata.abstained is True — LLM failure or
-    insufficient data) is excluded from numerator AND denominator: "no
-    opinion" must not masquerade as "opinion: neutral". A non-abstained 0.0
+    An abstained signal (metadata.abstained is True — the model refused,
+    its answer would not parse, or the snapshot was too thin) is excluded
+    from numerator AND denominator: "no opinion" must not masquerade as
+    "opinion: neutral". Infrastructure failures never reach here; they
+    abort the cycle, so an abstention always means a model was asked. A non-abstained 0.0
     (e.g. PEAD outside its window) is a real neutral vote and dilutes.
 
     With market_neutral, convictions are demeaned cross-sectionally before
