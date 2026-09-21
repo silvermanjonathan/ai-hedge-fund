@@ -965,6 +965,31 @@ is still open:
    LLM verdicts that never reach the ledger. 101 of them exist only as
    prompt-cache entries. Undecided.
 
+15. **Finding, no action: the re-seed changed the signal on 59 verdicts
+    against unchanged filings.** The Sept 20 persona edit re-asked 394
+    (school, ticker) pairs on filings that had not moved. 335 came back
+    the same; 59 (15%) came back different. Every school was affected
+    (`dalio_resilience` 12, `fundsmith` 10, `akre` and `fisher` 9 each,
+    down to `dreman` 2). `aihf-ledger flips --include-prompt-changes`
+    lists them.
+
+    The shape matters more than the count, and it is reassuring. There
+    were **zero** outright bull↔bear reversals: every one of the 59 has
+    neutral on one side. 50 moved OFF neutral (44 to bullish, 6 to
+    bearish) and 9 moved onto it. So the edit did not make schools change
+    their minds about direction — it largely converted "no opinion" into
+    an opinion, which is what a clause defining what confidence means, and
+    one telling a school a figure reads differently by sector, would be
+    expected to do.
+
+    Recorded rather than acted on because nothing here can settle whether
+    the new opinions are BETTER. The honest test is whether the 59 score
+    differently from the 335 that held, and that needs a horizon to
+    elapse — the earliest is Dec 2026 at h=63. Nothing downstream depends
+    on it in the meantime: the scorer counts a re-ask once, not twice
+    (rule 3's same-filing test), so these rows no longer distort a
+    school's n or its share columns.
+
 **Answered, for the record:** `validation/` is deferred with a date, not
 abandoned (~Dec 2026). `event_study/` is wanted and its library is
 complete; only its demo CLI drifted. `BacktestEngine` was retained

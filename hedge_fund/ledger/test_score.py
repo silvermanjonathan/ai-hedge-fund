@@ -62,7 +62,7 @@ class FakeData:
         ]
 
 
-def _row(school, ticker, signal, conf, event_idx, desk="d/p", key=None, basis=None, logged_at="t"):
+def _row(school, ticker, signal, conf, event_idx, desk="d/p", key=None, basis=None, logged_at="t", filing_date=None):
     """*logged_at* breaks the tie when two rows share an event_date — the
     shape a prompt edit leaves, which re-asks a whole cohort on one as_of.
     *basis* stays None by default so rows that never set it keep reading as
@@ -73,7 +73,7 @@ def _row(school, ticker, signal, conf, event_idx, desk="d/p", key=None, basis=No
         "school": school,
         "ticker": ticker,
         "snapshot_hash": str(event_idx),
-        "filing_date": None,
+        "filing_date": filing_date,
         "signal": signal,
         "basis": basis,
         "confidence": conf,
@@ -350,3 +350,61 @@ def test_a_same_day_re_ask_does_not_count_twice_in_the_share_columns(tmp_path):
     assert a.neutral_share == pytest.approx(1 / 2), "the replaced neutral is not a second opinion"
     assert a.insufficient_share == pytest.approx(0.0), "nothing a school still says is 'cannot tell'"
     assert a.n == 1, "and the scored set is the same one: up-late, DOWN being neutral"
+
+
+# --- same-filing re-asks ------------------------------------------------
+# The horizon test alone cannot catch a prompt edit that lands a quarter
+# after the rows it re-asks: by then the earlier verdict HAS stood its
+# whole horizon, so it scores, and the re-ask scores beside it. Same
+# school, same name, same filing, same opinion, counted twice. These three
+# fix the boundary at "was this a revision at all".
+
+FAR = 70  # trading days apart — comfortably past the 63-day horizon
+
+
+def test_a_same_filing_re_ask_drops_the_earlier_row_however_long_it_stood(tmp_path):
+    """A prompt edit re-asks the same question on facts that never moved.
+    The earlier row goes even though its horizon had fully elapsed."""
+    rows = [
+        _row("a", "UP", "bullish", 70, 0, key="v1", filing_date="2026-08-13"),
+        _row("a", "UP", "bullish", 70, FAR, key="v2", filing_date="2026-08-13"),
+    ]
+    card = scorecard(_ledger(tmp_path, rows), FakeData(), _today(200), horizons=(63,), min_calls=1)
+
+    assert _find(card, "a", 63).n == 1, "one opinion asked twice is one observation"
+
+
+def test_a_new_filing_revision_lets_both_rows_score(tmp_path):
+    """The case the rule must NOT catch. New facts make a genuinely new
+    judgment, and the first one stood its full horizon before the company
+    filed again, so it earned its score."""
+    rows = [
+        _row("a", "UP", "bullish", 70, 0, key="q2", filing_date="2026-05-07"),
+        _row("a", "UP", "bearish", 70, FAR, key="q3", filing_date="2026-08-13"),
+    ]
+    card = scorecard(_ledger(tmp_path, rows), FakeData(), _today(200), horizons=(63,), min_calls=1)
+
+    assert _find(card, "a", 63).n == 2, "two filings, two judgments, two observations"
+
+
+def test_null_filing_dates_fall_back_to_the_date_test(tmp_path):
+    """A missing filing_date is "not known", and two unknowns are not a
+    match — rows predating the field must not collapse into each other."""
+    far = [
+        _row("a", "UP", "bullish", 70, 0, key="n1"),
+        _row("a", "UP", "bullish", 70, FAR, key="n2"),
+    ]
+    near = [
+        _row("b", "UP", "bullish", 70, 0, key="n3"),
+        _row("b", "UP", "bearish", 70, 1, key="n4"),
+    ]
+    # One filing_date present, one absent: still not a match.
+    mixed = [
+        _row("c", "UP", "bullish", 70, 0, key="n5", filing_date="2026-08-13"),
+        _row("c", "UP", "bullish", 70, FAR, key="n6"),
+    ]
+    card = scorecard(_ledger(tmp_path, far + near + mixed), FakeData(), _today(200), horizons=(63,), min_calls=1)
+
+    assert _find(card, "a", 63).n == 2, "null != null, so only the horizon test applies"
+    assert _find(card, "b", 63).n == 1, "and that test still disqualifies a row revised inside its horizon"
+    assert _find(card, "c", 63).n == 2, "a known date does not match an unknown one"

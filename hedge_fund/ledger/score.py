@@ -20,6 +20,8 @@ Every column is computed from the same rows: those a school has not since
 revised. A verdict it replaced is history, not a second observation — the
 returns already worked this way (rule 3), and the neutral and "cant tell"
 shares now do too, so a prompt edit cannot move a column on its own.
+Re-asking a name on an unchanged filing is a re-ask rather than a
+revision, and the earlier row is dropped however long it stood.
 
 Two columns, two questions. `coverage` says whether the numbers may be read
 as a result at all. `status` is the judgment, and is only filled in when
@@ -226,17 +228,19 @@ def scorecard(
     # Rule 3: a verdict is scored only if it stood unchanged for its whole
     # horizon. One superseded earlier than that never got a fair test —
     # grading it anyway measures a school on an opinion it had already
-    # revised. superseded_on[key] is the event_date of the next verdict the
-    # same school made about the same ticker, or None if it still stands.
+    # revised. superseded_by[key] is the next verdict the same school made
+    # about the same ticker, or None if it still stands. The whole row
+    # rather than just its date, because disqualifying an earlier verdict
+    # also asks whether the later one revised it at all (see _is_reask).
     by_pair: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for r in rows:
         by_pair[(r["school"], r["ticker"])].append(r)
-    superseded_on: dict[str, str | None] = {}
+    superseded_by: dict[str, dict | None] = {}
     for pair_rows in by_pair.values():
         ordered = sorted(pair_rows, key=lambda r: (r.get("event_date") or "", r.get("logged_at") or ""))
         for earlier, later in zip(ordered, ordered[1:]):
-            superseded_on[earlier["key"]] = later["event_date"]
-        superseded_on[ordered[-1]["key"]] = None
+            superseded_by[earlier["key"]] = later
+        superseded_by[ordered[-1]["key"]] = None
 
     # Every column comes off *standing* — the rows rule 3 scores, minus its
     # horizon test. The share columns cannot apply that test: they are
@@ -248,7 +252,7 @@ def scorecard(
     # school changing its mind. The cost is that a verdict a school itself
     # revised leaves the profile, so both columns read "of what a school
     # still says", not "of everything it ever said".
-    standing = [r for r in rows if superseded_on.get(r["key"]) is None]
+    standing = [r for r in rows if superseded_by.get(r["key"]) is None]
     neutral_share = {s: _share([r for r in standing if r["school"] == s]) for s in schools}
     # Of what a school still says, how much is "I cannot tell from this".
     # A high number is a data problem wearing a judgment's clothes.
@@ -287,10 +291,14 @@ def scorecard(
         for h in horizons:
             if len(closes) < h or len(spy_closes) < h:
                 continue
-            # Rule 3. The horizon ends on the h-th trading day; a verdict
-            # revised on or before that day was not held to the end of it.
-            revised = superseded_on.get(r["key"])
-            if revised is not None and revised <= closes[h - 1][0]:
+            # Rule 3, which a verdict can fail two ways. The horizon ends
+            # on the h-th trading day, and one revised on or before that
+            # day was not held to the end of it. Separately, a re-ask on
+            # the same filing is not a revision at all, so the earlier row
+            # goes however long it stood — without that a prompt edit a
+            # quarter later scores one opinion on one set of facts twice.
+            later = superseded_by.get(r["key"])
+            if later is not None and (_is_reask(r, later) or later["event_date"] <= closes[h - 1][0]):
                 continue
             raw[(r["key"], h)] = closes[h - 1][1] / r["entry_close"] - 1
             spy[(r["event_date"], h)] = spy_closes[h - 1][1] / r["spy_close"] - 1
@@ -394,6 +402,24 @@ def scorecard(
                 )
             )
     return Scorecard(today=today, min_calls=min_calls, horizons=tuple(horizons), rows=out, since=since)
+
+
+def _is_reask(earlier: dict, later: dict) -> bool:
+    """Did *later* re-ask *earlier*'s question rather than revise it?
+
+    Ledger identity keys on the prompt, so editing one re-logs a whole
+    cohort against filings that never moved. Those two rows are one
+    opinion asked twice; counting both grades a school twice on a single
+    judgment, which the horizon test alone cannot prevent once enough
+    time has passed between the edits.
+
+    Both dates must be present. A missing filing_date means "not known",
+    and two unknowns are not a match — rows predating the field, or whose
+    snapshot carried no period, fall back to the horizon test rather than
+    being silently collapsed into each other.
+    """
+    earlier_filing = earlier.get("filing_date")
+    return bool(earlier_filing) and earlier_filing == later.get("filing_date")
 
 
 def _share(rows: list[dict]) -> float | None:
