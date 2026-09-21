@@ -62,7 +62,11 @@ class FakeData:
         ]
 
 
-def _row(school, ticker, signal, conf, event_idx, desk="d/p", key=None):
+def _row(school, ticker, signal, conf, event_idx, desk="d/p", key=None, basis=None, logged_at="t"):
+    """*logged_at* breaks the tie when two rows share an event_date — the
+    shape a prompt edit leaves, which re-asks a whole cohort on one as_of.
+    *basis* stays None by default so rows that never set it keep reading as
+    unknown rather than as "judged"."""
     d = TRADING[event_idx][1]
     return {
         "key": key or f"{school}|{ticker}|{event_idx}",
@@ -71,11 +75,12 @@ def _row(school, ticker, signal, conf, event_idx, desk="d/p", key=None):
         "snapshot_hash": str(event_idx),
         "filing_date": None,
         "signal": signal,
+        "basis": basis,
         "confidence": conf,
         "value": 0.0,
         "desk": desk,
         "event_date": d.isoformat(),
-        "logged_at": "t",
+        "logged_at": logged_at,
         "entry_close": close(ticker, d),
         "spy_close": close("SPY", d),
         "thesis": None,
@@ -324,3 +329,24 @@ def test_a_prompt_edit_does_not_double_the_sample(tmp_path):
 
     assert _find(only_first, "a", 21).n == 5
     assert _find(both, "a", 21).n == 5, "a re-ask replaces the call, it does not add one"
+
+
+def test_a_same_day_re_ask_does_not_count_twice_in_the_share_columns(tmp_path):
+    """The gap rule 3 left. `n` was already safe, but neutral_share and
+    insufficient_share counted raw rows, so a prompt edit — which re-asks
+    the cohort on one as_of and writes a second row under a new identity —
+    moved them with no school having changed its mind. Only the standing
+    row counts, and the two columns agree with the one `n` is built from."""
+    rows = [
+        # UP asked twice on one day: the first answer was replaced minutes later.
+        _row("a", "UP", "neutral", 50, 0, key="up-early", basis="insufficient", logged_at="00:59"),
+        _row("a", "UP", "bullish", 80, 0, key="up-late", basis="judged", logged_at="02:39"),
+        _row("a", "DOWN", "neutral", 50, 0, key="down", basis="judged"),
+    ]
+    card = scorecard(_ledger(tmp_path, rows), FakeData(), _today(40), horizons=(21,), min_calls=1)
+    a = _find(card, "a", 21)
+
+    # Over all three rows these would read 2/3 and 1/3.
+    assert a.neutral_share == pytest.approx(1 / 2), "the replaced neutral is not a second opinion"
+    assert a.insufficient_share == pytest.approx(0.0), "nothing a school still says is 'cannot tell'"
+    assert a.n == 1, "and the scored set is the same one: up-late, DOWN being neutral"

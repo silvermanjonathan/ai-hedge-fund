@@ -16,6 +16,11 @@ their seat, and it cannot do that for a school it silently omits. A ranking
 of the nine schools that happen to run weekly, printed with no mention of
 the other nine, reads as complete when it is not.
 
+Every column is computed from the same rows: those a school has not since
+revised. A verdict it replaced is history, not a second observation — the
+returns already worked this way (rule 3), and the neutral and "cant tell"
+shares now do too, so a prompt edit cannot move a column on its own.
+
 Two columns, two questions. `coverage` says whether the numbers may be read
 as a result at all. `status` is the judgment, and is only filled in when
 coverage is "scored" — "earned" when the 63-day mean is positive with a hit
@@ -217,10 +222,37 @@ def scorecard(
     # The roster, plus anything in the ledger the roster has since dropped —
     # a renamed or retired school must not vanish from its own history.
     schools = sorted(set(SCHOOLS) | with_calls)
-    neutral_share = {s: _share([r for r in rows if r["school"] == s]) for s in schools}
-    # Of everything a school said, how much was "I cannot tell from this".
+
+    # Rule 3: a verdict is scored only if it stood unchanged for its whole
+    # horizon. One superseded earlier than that never got a fair test —
+    # grading it anyway measures a school on an opinion it had already
+    # revised. superseded_on[key] is the event_date of the next verdict the
+    # same school made about the same ticker, or None if it still stands.
+    by_pair: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    for r in rows:
+        by_pair[(r["school"], r["ticker"])].append(r)
+    superseded_on: dict[str, str | None] = {}
+    for pair_rows in by_pair.values():
+        ordered = sorted(pair_rows, key=lambda r: (r.get("event_date") or "", r.get("logged_at") or ""))
+        for earlier, later in zip(ordered, ordered[1:]):
+            superseded_on[earlier["key"]] = later["event_date"]
+        superseded_on[ordered[-1]["key"]] = None
+
+    # Every column comes off *standing* — the rows rule 3 scores, minus its
+    # horizon test. The share columns cannot apply that test: they are
+    # horizon-free and need no prices, so they take its horizon-free
+    # projection instead, that a revised verdict is not a second opinion.
+    # Without it a prompt edit moved these numbers on its own, because a
+    # re-ask writes a second row under a new identity: the Sept 2026 edit
+    # shifted akre's neutral share 8 points and pabrai's 10 without a single
+    # school changing its mind. The cost is that a verdict a school itself
+    # revised leaves the profile, so both columns read "of what a school
+    # still says", not "of everything it ever said".
+    standing = [r for r in rows if superseded_on.get(r["key"]) is None]
+    neutral_share = {s: _share([r for r in standing if r["school"] == s]) for s in schools}
+    # Of what a school still says, how much is "I cannot tell from this".
     # A high number is a data problem wearing a judgment's clothes.
-    insufficient_share = {s: _insufficient([r for r in rows if r["school"] == s]) for s in schools}
+    insufficient_share = {s: _insufficient([r for r in standing if r["school"] == s]) for s in schools}
 
     # Forward closes per (ticker, event_date), fetched once per pair.
     max_h = max(horizons)
@@ -243,21 +275,6 @@ def scorecard(
             after = sorted((b for b in bars if event_date < b.time[:10] <= today), key=lambda b: b.time)
             bars_cache[key] = [(b.time[:10], b.close) for b in after]
         return bars_cache[key]
-
-    # Rule 3: a verdict is scored only if it stood unchanged for its whole
-    # horizon. One superseded earlier than that never got a fair test —
-    # grading it anyway measures a school on an opinion it had already
-    # revised. superseded_on[key] is the event_date of the next verdict the
-    # same school made about the same ticker, or None if it still stands.
-    by_pair: dict[tuple[str, str], list[dict]] = defaultdict(list)
-    for r in rows:
-        by_pair[(r["school"], r["ticker"])].append(r)
-    superseded_on: dict[str, str | None] = {}
-    for pair_rows in by_pair.values():
-        ordered = sorted(pair_rows, key=lambda r: (r.get("event_date") or "", r.get("logged_at") or ""))
-        for earlier, later in zip(ordered, ordered[1:]):
-            superseded_on[earlier["key"]] = later["event_date"]
-        superseded_on[ordered[-1]["key"]] = None
 
     # Raw forward returns for every priced row (neutral included: they define the universe bar).
     raw: dict[tuple[str, int], float] = {}  # (row key, horizon) -> close_h / entry - 1
