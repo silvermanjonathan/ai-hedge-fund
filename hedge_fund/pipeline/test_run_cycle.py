@@ -9,10 +9,10 @@ from hedge_fund.models import Signal
 from hedge_fund.pipeline.models import CycleRecord
 from hedge_fund.pipeline.run_cycle import run_cycle
 
-
 # ---------------------------------------------------------------------------
 # Fakes
 # ---------------------------------------------------------------------------
+
 
 class FakeDataClient:
     """Canned closes per ticker; a ticker absent from `closes` has no bars."""
@@ -24,8 +24,7 @@ class FakeDataClient:
         close = self._closes.get(ticker)
         if close is None:
             return []
-        return [Price(open=close, close=close, high=close, low=close,
-                      volume=1000, time=f"{end_date}T00:00:00Z")]
+        return [Price(open=close, close=close, high=close, low=close, volume=1000, time=f"{end_date}T00:00:00Z")]
 
 
 class FakeAnalyst:
@@ -48,8 +47,7 @@ class FakeAnalyst:
             raise self._error
         metadata = {"abstained": True} if self._abstain else {}
         value = 0.0 if self._abstain else self._views.get(ticker, 0.0)
-        return Signal(model_name=self._name, ticker=ticker, date=date,
-                      value=value, metadata=metadata)
+        return Signal(model_name=self._name, ticker=ticker, date=date, value=value, metadata=metadata)
 
 
 def _spec(strategies=None, max_position_pct=0.25):
@@ -72,19 +70,24 @@ UNIVERSE = ["AAPL", "MSFT", "NVDA"]
 # The happy path
 # ---------------------------------------------------------------------------
 
+
 def test_full_cycle_record_is_consistent():
-    spec = _spec(strategies=[
-        {"name": "long", "models": [{"name": "a"}]},
-        {"name": "short", "models": [{"name": "b"}]},
-    ])
-    fund = Fund(spec, models={
-        "long": [FakeAnalyst("a", views={"AAPL": 1.0, "NVDA": 0.5})],
-        "short": [FakeAnalyst("b", views={"MSFT": -1.0})],
-    })
+    spec = _spec(
+        strategies=[
+            {"name": "long", "models": [{"name": "a"}]},
+            {"name": "short", "models": [{"name": "b"}]},
+        ]
+    )
+    fund = Fund(
+        spec,
+        models={
+            "long": [FakeAnalyst("a", views={"AAPL": 1.0, "NVDA": 0.5})],
+            "short": [FakeAnalyst("b", views={"MSFT": -1.0})],
+        },
+    )
     broker = SimBroker(cash=100_000.0)
 
-    record = run_cycle(fund, "2024-06-03", broker, FakeDataClient(CLOSES),
-                       UNIVERSE)
+    record = run_cycle(fund, "2024-06-03", broker, FakeDataClient(CLOSES), UNIVERSE)
 
     assert record.fund == "test-fund"
     assert record.equity_before == pytest.approx(100_000.0)
@@ -95,34 +98,36 @@ def test_full_cycle_record_is_consistent():
         assert abs(w) <= 0.25 + 1e-12
     # Fills mirror orders one-to-one, and the books balance
     assert len(record.fills) == len(record.orders) > 0
-    assert record.nav == pytest.approx(
-        record.cash + sum(s * record.marks[t] for t, s in record.positions.items())
-    )
+    assert record.nav == pytest.approx(record.cash + sum(s * record.marks[t] for t, s in record.positions.items()))
     # The short strategy's bearish view -> short position
     assert record.positions["MSFT"] < 0
 
 
 def test_netting_math_two_strategies_unequal_slices():
     """Two sleeves, overlapping ticker, 3:1 slices — hand-computed netting."""
-    spec = _spec(strategies=[
-        {"name": "s1", "weight": 3.0, "models": [{"name": "a"}]},
-        {"name": "s2", "weight": 1.0, "models": [{"name": "b"}]},
-    ], max_position_pct=1.0)
-    fund = Fund(spec, models={
-        # s1 sleeve: AAPL 0.5, MSFT 0.5 (equal convictions, gross 1.0)
-        "s1": [FakeAnalyst("a", views={"AAPL": 1.0, "MSFT": 1.0})],
-        # s2 sleeve: MSFT -1.0 (only conviction takes full gross)
-        "s2": [FakeAnalyst("b", views={"MSFT": -1.0})],
-    })
+    spec = _spec(
+        strategies=[
+            {"name": "s1", "weight": 3.0, "models": [{"name": "a"}]},
+            {"name": "s2", "weight": 1.0, "models": [{"name": "b"}]},
+        ],
+        max_position_pct=1.0,
+    )
+    fund = Fund(
+        spec,
+        models={
+            # s1 sleeve: AAPL 0.5, MSFT 0.5 (equal convictions, gross 1.0)
+            "s1": [FakeAnalyst("a", views={"AAPL": 1.0, "MSFT": 1.0})],
+            # s2 sleeve: MSFT -1.0 (only conviction takes full gross)
+            "s2": [FakeAnalyst("b", views={"MSFT": -1.0})],
+        },
+    )
 
-    record = run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0),
-                       FakeDataClient(CLOSES), UNIVERSE)
+    record = run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0), FakeDataClient(CLOSES), UNIVERSE)
 
     s1, s2 = record.strategies
     assert s1.slice == pytest.approx(0.75)
     assert s2.slice == pytest.approx(0.25)
-    assert s1.weights == {"AAPL": pytest.approx(0.5), "MSFT": pytest.approx(0.5),
-                          "NVDA": 0.0}
+    assert s1.weights == {"AAPL": pytest.approx(0.5), "MSFT": pytest.approx(0.5), "NVDA": 0.0}
     assert s2.weights["MSFT"] == pytest.approx(-1.0)
     # Netted: AAPL = .75*.5 = .375 ; MSFT = .75*.5 + .25*(-1) = .125
     assert record.target_weights["AAPL"] == pytest.approx(0.375)
@@ -131,17 +136,22 @@ def test_netting_math_two_strategies_unequal_slices():
 
 def test_slices_normalize():
     """weights 2/2 must mean exactly the same as 1/1."""
+
     def run(w1, w2):
-        spec = _spec(strategies=[
-            {"name": "s1", "weight": w1, "models": [{"name": "a"}]},
-            {"name": "s2", "weight": w2, "models": [{"name": "b"}]},
-        ])
-        fund = Fund(spec, models={
-            "s1": [FakeAnalyst("a", views={"AAPL": 1.0})],
-            "s2": [FakeAnalyst("b", views={"NVDA": -0.5})],
-        })
-        return run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0),
-                         FakeDataClient(CLOSES), UNIVERSE)
+        spec = _spec(
+            strategies=[
+                {"name": "s1", "weight": w1, "models": [{"name": "a"}]},
+                {"name": "s2", "weight": w2, "models": [{"name": "b"}]},
+            ]
+        )
+        fund = Fund(
+            spec,
+            models={
+                "s1": [FakeAnalyst("a", views={"AAPL": 1.0})],
+                "s2": [FakeAnalyst("b", views={"NVDA": -0.5})],
+            },
+        )
+        return run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0), FakeDataClient(CLOSES), UNIVERSE)
 
     assert run(2.0, 2.0).target_weights == run(1.0, 1.0).target_weights
 
@@ -149,11 +159,13 @@ def test_slices_normalize():
 def test_deterministic_and_json_round_trips():
     def make():
         spec = _spec()
-        fund = Fund(spec, models={
-            "solo": [FakeAnalyst("a", views={"AAPL": 1.0, "MSFT": -0.5})],
-        })
-        return run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0),
-                         FakeDataClient(CLOSES), UNIVERSE)
+        fund = Fund(
+            spec,
+            models={
+                "solo": [FakeAnalyst("a", views={"AAPL": 1.0, "MSFT": -0.5})],
+            },
+        )
+        return run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0), FakeDataClient(CLOSES), UNIVERSE)
 
     first, second = make(), make()
     assert first.model_dump_json() == second.model_dump_json()
@@ -163,18 +175,22 @@ def test_deterministic_and_json_round_trips():
 def test_parallel_analysts_produce_the_serial_record(monkeypatch):
     """The fan-out is invisible in the record: three workers and one worker
     yield the same CycleRecord, signal order included."""
+
     def make():
-        spec = _spec(strategies=[
-            {"name": "s1", "models": [{"name": "a"}, {"name": "b"}]},
-            {"name": "s2", "models": [{"name": "c"}]},
-        ])
-        fund = Fund(spec, models={
-            "s1": [FakeAnalyst("a", views={"AAPL": 1.0, "MSFT": -0.5}),
-                   FakeAnalyst("b", views={"NVDA": 0.75})],
-            "s2": [FakeAnalyst("c", views={"MSFT": 0.25}, abstain=False)],
-        })
-        return run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0),
-                         FakeDataClient(CLOSES), UNIVERSE)
+        spec = _spec(
+            strategies=[
+                {"name": "s1", "models": [{"name": "a"}, {"name": "b"}]},
+                {"name": "s2", "models": [{"name": "c"}]},
+            ]
+        )
+        fund = Fund(
+            spec,
+            models={
+                "s1": [FakeAnalyst("a", views={"AAPL": 1.0, "MSFT": -0.5}), FakeAnalyst("b", views={"NVDA": 0.75})],
+                "s2": [FakeAnalyst("c", views={"MSFT": 0.25}, abstain=False)],
+            },
+        )
+        return run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0), FakeDataClient(CLOSES), UNIVERSE)
 
     monkeypatch.setenv("HEDGE_FUND_LLM_WORKERS", "1")
     serial = make()
@@ -205,6 +221,7 @@ def test_second_cycle_rebalances_not_restarts():
 # Abstain / flat behavior
 # ---------------------------------------------------------------------------
 
+
 def test_all_abstain_closes_the_book_to_flat():
     analyst = FakeAnalyst("a", views={"AAPL": 1.0})
     fund = Fund(_spec(max_position_pct=1.0), models={"solo": [analyst]})
@@ -224,14 +241,14 @@ def test_all_abstain_closes_the_book_to_flat():
 # Pricing edge cases
 # ---------------------------------------------------------------------------
 
+
 def test_unpriced_unowned_ticker_skipped_and_analysts_never_called():
     analyst = FakeAnalyst("a", views={"AAPL": 1.0})
     fund = Fund(_spec(), models={"solo": [analyst]})
     closes = dict(CLOSES)
     del closes["NVDA"]
 
-    record = run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0),
-                       FakeDataClient(closes), UNIVERSE)
+    record = run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0), FakeDataClient(closes), UNIVERSE)
 
     assert [s.ticker for s in record.skipped] == ["NVDA"]
     assert "NVDA" not in analyst.predict_calls
@@ -252,12 +269,14 @@ def test_unpriced_held_ticker_raises():
 def test_universe_is_a_run_time_argument():
     """The same fund, pointed at different names, trades different names —
     and the record says what it was asked to trade."""
-    fund = Fund(_spec(max_position_pct=1.0), models={
-        "solo": [FakeAnalyst("a", views={"AAPL": 1.0, "MSFT": 1.0})],
-    })
+    fund = Fund(
+        _spec(max_position_pct=1.0),
+        models={
+            "solo": [FakeAnalyst("a", views={"AAPL": 1.0, "MSFT": 1.0})],
+        },
+    )
 
-    record = run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0),
-                       FakeDataClient(CLOSES), ["aapl", "AAPL"])
+    record = run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0), FakeDataClient(CLOSES), ["aapl", "AAPL"])
 
     assert record.universe == ["AAPL"]  # upper-cased and de-duped
     assert "MSFT" not in record.final_weights
@@ -266,15 +285,16 @@ def test_universe_is_a_run_time_argument():
 def test_empty_universe_raises():
     fund = Fund(_spec(), models={"solo": [FakeAnalyst("a")]})
     with pytest.raises(ValueError, match="universe is empty"):
-        run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0),
-                  FakeDataClient(CLOSES), [])
+        run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0), FakeDataClient(CLOSES), [])
 
 
 def test_analyst_error_propagates():
     """Fail loud: an infrastructure failure must not become a quiet no-trade."""
-    fund = Fund(_spec(), models={
-        "solo": [FakeAnalyst("a", error=ConnectionError("API down"))],
-    })
+    fund = Fund(
+        _spec(),
+        models={
+            "solo": [FakeAnalyst("a", error=ConnectionError("API down"))],
+        },
+    )
     with pytest.raises(ConnectionError):
-        run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0),
-                  FakeDataClient(CLOSES), UNIVERSE)
+        run_cycle(fund, "2024-06-03", SimBroker(cash=100_000.0), FakeDataClient(CLOSES), UNIVERSE)

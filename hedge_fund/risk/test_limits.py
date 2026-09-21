@@ -2,7 +2,7 @@
 
 import pytest
 
-from hedge_fund.risk.limits import RiskLimits, apply_limits
+from hedge_fund.risk.limits import apply_limits, RiskLimits
 
 LIMITS = RiskLimits(max_position_pct=0.25, max_gross_exposure=1.0)
 

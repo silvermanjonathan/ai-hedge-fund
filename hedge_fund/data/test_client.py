@@ -1,6 +1,7 @@
 """Week 1 data exploration — pull and inspect FD data for 5 tickers."""
 
 import os
+
 import pytest
 
 from hedge_fund.data import FDClient
@@ -35,8 +36,15 @@ def test_financial_metrics(fd: FDClient, ticker: str) -> None:
     assert len(metrics) > 0, f"No metrics for {ticker}"
     m = metrics[0]
     populated = [
-        f for f in ["market_cap", "price_to_earnings_ratio", "return_on_equity",
-                     "gross_margin", "debt_to_equity", "revenue_growth"]
+        f
+        for f in [
+            "market_cap",
+            "price_to_earnings_ratio",
+            "return_on_equity",
+            "gross_margin",
+            "debt_to_equity",
+            "revenue_growth",
+        ]
         if getattr(m, f) is not None
     ]
     periods = [m.report_period for m in metrics]
@@ -87,10 +95,12 @@ def test_earnings_history(fd: FDClient, ticker: str) -> None:
     for r in records:
         assert r.source_type in valid_source_types, f"Bad source_type: {r.source_type}"
         if r.filing_datetime is not None:
-            assert r.filing_date == r.filing_datetime[:10], (
-                f"filing_date/datetime mismatch: {r.filing_date} vs {r.filing_datetime}"
-            )
+            assert (
+                r.filing_date == r.filing_datetime[:10]
+            ), f"filing_date/datetime mismatch: {r.filing_date} vs {r.filing_datetime}"
 
     print(f"  {ticker} earnings history: {len(records)} records")
     for r in records:
-        print(f"    {r.report_period}  {r.source_type:5s}  {r.filing_date}  q={'yes' if r.quarterly else 'no'}  a={'yes' if r.annual else 'no'}")
+        print(
+            f"    {r.report_period}  {r.source_type:5s}  {r.filing_date}  q={'yes' if r.quarterly else 'no'}  a={'yes' if r.annual else 'no'}"  # noqa: E501
+        )

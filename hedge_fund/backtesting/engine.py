@@ -1,14 +1,37 @@
-"""Backtesting engine — simulate trading an alpha model's views over time.
+"""Single-model alpha isolation — one model's raw edge, nothing in the way.
 
-The engine queries an AlphaModel across a date grid, turns its convictions
-into trades, and computes performance (return, Sharpe, drawdown).
+The engine queries one AlphaModel across a date grid, turns its convictions
+into trades with deliberately plain mechanics, and computes performance
+(return, Sharpe, drawdown).
 
-IMPORTANT — separation of concerns (the "unify" decision):
-  - The AlphaModel forms *views* (conviction in [-1, +1]).
-  - This engine owns *mechanics* (entry timing, holding period, sizing).
-These mechanics are intentionally simple for now (threshold + fixed holding
-period + equal-dollar sizing). Week 8 portfolio construction will replace
-this harness with real position sizing and risk-aware weighting.
+This answers a different question from backtest_fund, and both are kept:
+
+  - `backtest_fund` runs the real pipeline — a whole desk, views blended
+    across a strategy's staff, netted across strategies, then clamped by
+    master risk. It tells you what the fund would have done.
+  - `BacktestEngine.run_alpha` runs ONE model with portfolio construction
+    and risk clamps out of the way: threshold on conviction, fixed holding
+    period, equal-dollar sizing. It tells you whether that model's views
+    carry information at all, without a blend crediting or masking it.
+
+The plain mechanics are the point, not a placeholder. An earlier version of
+this docstring said Week 8 portfolio construction would replace this
+harness. That was wrong and is removed: portfolio construction shipped in
+hedge_fund/portfolio/, backtest_fund was built on it, and this engine was
+deliberately kept because isolating a single model is a question the fund
+backtest cannot answer.
+
+It pairs with the verdict ledger rather than duplicating it. The ledger
+scores a school live — inside a blend, on whatever names the weekly Finviz
+screen surfaced, forward only, and provisional under 20 scored calls. This
+runs one model alone, over a window you choose, today. While every school
+is still provisional, the two are a useful cross-check.
+
+Data source: run_alpha itself only calls get_prices() and model.predict(),
+so it works on either source. What it can run is decided by the MODEL —
+all 18 LLM personas work on the default free source; only `pead` needs
+--data fd. Note that `python -m hedge_fund.backtesting` hardcodes PEADModel
+and is therefore fd-only, but the engine is not.
 
 Usage:
     from datetime import date
@@ -78,10 +101,17 @@ class BacktestEngine:
         """
         trades: list[Trade] = []
         for ticker in tickers:
-            trades.extend(self._trade_ticker(
-                model, ticker, data_client, start_date, end_date,
-                threshold=threshold, holding_days=holding_days,
-            ))
+            trades.extend(
+                self._trade_ticker(
+                    model,
+                    ticker,
+                    data_client,
+                    start_date,
+                    end_date,
+                    threshold=threshold,
+                    holding_days=holding_days,
+                )
+            )
 
         if not trades:
             return BacktestResult()
@@ -137,8 +167,14 @@ class BacktestEngine:
                 if exit_idx >= len(all_days):
                     break  # not enough future data to close the position
                 trade = self._build_trade(
-                    ticker, direction, d, all_days[exit_idx],
-                    price_map, holding_days, signal.reasoning, dict(signal.metadata),
+                    ticker,
+                    direction,
+                    d,
+                    all_days[exit_idx],
+                    price_map,
+                    holding_days,
+                    signal.reasoning,
+                    dict(signal.metadata),
                 )
                 if trade is not None:
                     trades.append(trade)
@@ -294,6 +330,7 @@ class BacktestEngine:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _parse_date(s: str) -> date:
     return datetime.strptime(s[:10], "%Y-%m-%d").date()

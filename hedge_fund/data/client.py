@@ -78,13 +78,17 @@ class FDClient:
         interval_multiplier: int = 1,
     ) -> list[Price]:
         """Fetch OHLC price bars."""
-        data = self._get("/prices/", {
-            "ticker": ticker,
-            "interval": interval,
-            "interval_multiplier": interval_multiplier,
-            "start_date": start_date,
-            "end_date": end_date,
-        }, response_key="prices")
+        data = self._get(
+            "/prices/",
+            {
+                "ticker": ticker,
+                "interval": interval,
+                "interval_multiplier": interval_multiplier,
+                "start_date": start_date,
+                "end_date": end_date,
+            },
+            response_key="prices",
+        )
         return [Price(**row) for row in data] if data else []
 
     # ------------------------------------------------------------------
@@ -107,12 +111,16 @@ class FDClient:
         server-side, so everything returned was provably knowable on
         *end_date*.
         """
-        data = self._get("/financial-metrics/", {
-            "ticker": ticker,
-            "filing_date_lte": end_date,
-            "period": period,
-            "limit": limit,
-        }, response_key="financial_metrics")
+        data = self._get(
+            "/financial-metrics/",
+            {
+                "ticker": ticker,
+                "filing_date_lte": end_date,
+                "period": period,
+                "limit": limit,
+            },
+            response_key="financial_metrics",
+        )
         return [FinancialMetrics(**row) for row in data] if data else []
 
     # ------------------------------------------------------------------
@@ -190,10 +198,14 @@ class FDClient:
         The same ``report_period`` may appear multiple times with
         different ``source_type`` values.
         """
-        data = self._get("/earnings/", {
-            "ticker": ticker,
-            "limit": limit,
-        }, response_key="earnings")
+        data = self._get(
+            "/earnings/",
+            {
+                "ticker": ticker,
+                "limit": limit,
+            },
+            response_key="earnings",
+        )
         return [EarningsRecord(**row) for row in data] if data else []
 
     # ------------------------------------------------------------------
@@ -267,17 +279,23 @@ class FDClient:
         for attempt, delay in enumerate((*self._RETRY_DELAYS, None)):
             try:
                 resp = self._session.request(
-                    method, url, timeout=self._timeout, **kwargs,
+                    method,
+                    url,
+                    timeout=self._timeout,
+                    **kwargs,
                 )
             except requests.RequestException as exc:
                 raise FDClientError(
-                    f"{method} {path} failed: {exc}", path=path,
+                    f"{method} {path} failed: {exc}",
+                    path=path,
                 ) from exc
 
             if resp.status_code == 429 and delay is not None:
                 logger.info(
                     "Rate limited (429), retrying in %ds (attempt %d/%d)",
-                    delay, attempt + 1, len(self._RETRY_DELAYS),
+                    delay,
+                    attempt + 1,
+                    len(self._RETRY_DELAYS),
                 )
                 time.sleep(delay)
                 continue
@@ -288,12 +306,14 @@ class FDClient:
             if resp.status_code >= 400:
                 raise FDClientError(
                     f"{method} {path} returned {resp.status_code}: {resp.text[:200]}",
-                    status_code=resp.status_code, path=path,
+                    status_code=resp.status_code,
+                    path=path,
                 )
 
             return resp
 
         raise FDClientError(
             f"{method} {path} rate limited (429) after {len(self._RETRY_DELAYS)} retries",
-            status_code=429, path=path,
+            status_code=429,
+            path=path,
         )

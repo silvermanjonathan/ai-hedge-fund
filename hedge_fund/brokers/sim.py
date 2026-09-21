@@ -24,11 +24,7 @@ class SimBroker:
         self._shares: dict[str, int] = {}
 
     def positions(self) -> dict[str, Position]:
-        return {
-            t: Position(ticker=t, shares=s)
-            for t, s in self._shares.items()
-            if s != 0
-        }
+        return {t: Position(ticker=t, shares=s) for t, s in self._shares.items() if s != 0}
 
     def cash(self) -> float:
         return self._cash
@@ -36,8 +32,7 @@ class SimBroker:
     def place_order(self, order: Order) -> Fill:
         if order.price <= 0:
             raise ValueError(
-                f"cannot fill {order.ticker} at price {order.price} — "
-                "the caller must price every order"
+                f"cannot fill {order.ticker} at price {order.price} — " "the caller must price every order"
             )
 
         if order.side == "buy":

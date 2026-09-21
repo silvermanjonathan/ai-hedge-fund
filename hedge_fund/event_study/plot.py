@@ -13,8 +13,8 @@ fig.savefig() or plt.show().
 
 from __future__ import annotations
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.figure import Figure
 
 from hedge_fund.event_study.models import EventStudyResult
@@ -66,8 +66,11 @@ def plot_car_by_source(result: EventStudyResult) -> Figure:
         # Offset each source_type's bars so they don't overlap
         offset = (i - len(source_types) / 2 + 0.5) * width
         ax.bar(
-            x + offset, means, width,
-            yerr=[errors_lo, errors_hi], capsize=3,
+            x + offset,
+            means,
+            width,
+            yerr=[errors_lo, errors_hi],
+            capsize=3,
             label=agg.source_type,
         )
 
@@ -82,7 +85,8 @@ def plot_car_by_source(result: EventStudyResult) -> Figure:
 
 
 def plot_car_distribution(
-    result: EventStudyResult, window: str = "[0,+1]",
+    result: EventStudyResult,
+    window: str = "[0,+1]",
 ) -> Figure:
     """Histogram of individual event CARs, one subplot per source_type.
 
@@ -117,9 +121,8 @@ def plot_car_distribution(
     for ax, st in zip(axes, source_types):
         vals = np.array(groups[st])
         ax.hist(vals, bins=20, edgecolor="black", alpha=0.7)
-        ax.axvline(0, color="black", linewidth=0.8, linestyle="--")     # no-effect reference
-        ax.axvline(vals.mean(), color="red", linewidth=1.5,              # sample mean
-                   label=f"mean={vals.mean():.2f}%")
+        ax.axvline(0, color="black", linewidth=0.8, linestyle="--")  # no-effect reference
+        ax.axvline(vals.mean(), color="red", linewidth=1.5, label=f"mean={vals.mean():.2f}%")  # sample mean
         ax.set_title(f"{st} — {window}")
         ax.set_xlabel("CAR (%)")
         ax.set_ylabel("Count")
@@ -130,7 +133,8 @@ def plot_car_distribution(
 
 
 def plot_cumulative_ar(
-    result: EventStudyResult, source_type: str | None = None,
+    result: EventStudyResult,
+    source_type: str | None = None,
 ) -> Figure:
     """Average cumulative AR path from day 0 to day +20.
 

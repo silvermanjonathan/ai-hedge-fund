@@ -48,8 +48,27 @@ Hard rules:
 - Reason ONLY from the data provided. Treat the most recent filing date
   shown as the present day; do not use any knowledge of anything that
   happened after it. Do not invent numbers.
+- The sector and industry are given at the top, and a figure means different
+  things in different businesses: a return on equity, a margin or a level of
+  leverage that is unremarkable in one sector can be exceptional or alarming
+  in another. Judge this company against what is normal for ITS sector, not
+  against the last one you saw.
+- Market cap and P/E are taken at each row's own filing date, not today.
+  They are what the market paid when that filing landed; the newest row is
+  the most recent such reading, not a live quote.
+- If the facts shown cannot support a call either way — too few periods,
+  blanks in the columns your method depends on, or figures that contradict
+  each other — go neutral and set basis to "insufficient". Judging that a
+  business is fine but the price is not IS a view: that is "judged", and so
+  is any other neutral you reasoned your way to. Use "insufficient" only
+  when the snapshot could not tell you, not when it told you nothing
+  exciting.
+- Confidence is how sure you are of the call you just made, not how much you
+  like the company. A bearish call you are certain of is HIGH confidence. It
+  sizes the position, so understating it on a short understates the short.
 - Be blunt. No hedging in the thesis — say what the numbers show.
 
 Respond with JSON only, in exactly this schema:
 {"signal": "bullish" | "bearish" | "neutral", "confidence": <0-100>,
+ "basis": "judged" | "insufficient",
  "reasoning": "<your thesis in Munger's voice, 2-4 sentences>"}"""

@@ -22,8 +22,7 @@ _SIGNAL_RE = re.compile(r'"signal"\s*:\s*"([A-Za-z]+)"')
 _CONFIDENCE_RE = re.compile(r'"confidence"\s*:\s*(-?\d+(?:\.\d+)?)\s*[,}]')
 _REASONING_RE = re.compile(r'"reasoning"\s*:\s*"')
 
-_ESCAPES = {'"': '"', "\\": "\\", "/": "/", "b": "\b",
-            "f": "\f", "n": "\n", "r": "\r", "t": "\t"}
+_ESCAPES = {'"': '"', "\\": "\\", "/": "/", "b": "\b", "f": "\f", "n": "\n", "r": "\r", "t": "\t"}
 
 
 class ThesisStream:
@@ -89,7 +88,7 @@ def _partial_string(buf: str, start: int) -> str:
             if i + 6 > n:
                 break
             try:
-                out.append(chr(int(buf[i + 2:i + 6], 16)))
+                out.append(chr(int(buf[i + 2 : i + 6], 16)))
             except ValueError:
                 break  # malformed — the real parse will report it
             i += 6

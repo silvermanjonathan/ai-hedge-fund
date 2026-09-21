@@ -7,8 +7,12 @@
   into a prompt.
 - Point-in-time discipline: an analyst may only see data filed on or before
   as_of. FundamentalsSnapshot.render() is date-free on purpose.
-- Failure contract (hedge_fund/signals/llm_agent.py): data-layer errors
-  propagate; LLM call/parse/refusal errors abstain.
+- Failure contract (hedge_fund/signals/llm_agent.py): abstain ONLY when the
+  model declined (refusal), could not be understood (parse failure), or the
+  data was too thin (InsufficientData). Everything else propagates —
+  data-layer errors and any transport, auth, quota or timeout failure from
+  the provider. The default is propagate: an abstention must mean something
+  was asked and no view came back, never that nobody asked.
 - Default LLM: claude-fable-5-1 via the anthropic SDK. Effort via
   HEDGE_FUND_LLM_EFFORT or --effort. Other providers stay on LangChain.
 - Data source: HEDGE_FUND_DATA=free|fd (--data), default free. free = EDGAR

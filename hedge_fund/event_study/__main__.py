@@ -1,6 +1,17 @@
 """Run the event study engine. Screen-record friendly output.
 
-Usage: poetry run python -m hedge_fund.event_study
+Usage: poetry run python -m hedge_fund.event_study  (needs --data fd)
+
+DRIFTED DEMO — kept as-is, deliberately. This script predates the library
+settling into its current shape and no longer uses it properly: it drives
+the private _compute_ticker_events() in a loop of its own rather than
+calling engine.compute_car(), which already does exactly that and returns
+the cross-sectional aggregates too. The per-event table below is real; the
+statistics that are the point of an event study are never rendered.
+
+Not fixed because the fix produces a CLI that still cannot run without a
+Financial Datasets key. Use engine.compute_car() directly if you need the
+aggregates. See hedge_fund/event_study/__init__.py for the package status.
 """
 
 from __future__ import annotations
@@ -9,30 +20,116 @@ import sys
 import time
 
 from hedge_fund.data import make_data_client, unsupported_model_names
-from hedge_fund.event_study import compute_car
-
 
 TICKERS = [
     # Tech (21)
-    "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "NFLX", "CRM", "ADBE",
-    "ORCL", "INTC", "AMD", "CSCO", "IBM", "UBER", "SHOP", "SNOW", "PLTR", "PANW", "CRWD",
+    "AAPL",
+    "MSFT",
+    "AMZN",
+    "GOOGL",
+    "META",
+    "NVDA",
+    "TSLA",
+    "NFLX",
+    "CRM",
+    "ADBE",
+    "ORCL",
+    "INTC",
+    "AMD",
+    "CSCO",
+    "IBM",
+    "UBER",
+    "SHOP",
+    "SNOW",
+    "PLTR",
+    "PANW",
+    "CRWD",
     # Financials (15)
-    "JPM", "GS", "BAC", "WFC", "MS", "C", "BLK", "SCHW", "AXP", "COF",
-    "USB", "PNC", "TFC", "BK", "CME",
+    "JPM",
+    "GS",
+    "BAC",
+    "WFC",
+    "MS",
+    "C",
+    "BLK",
+    "SCHW",
+    "AXP",
+    "COF",
+    "USB",
+    "PNC",
+    "TFC",
+    "BK",
+    "CME",
     # Healthcare (15)
-    "JNJ", "PFE", "UNH", "MRK", "LLY", "ABBV", "TMO", "ABT", "BMY", "AMGN",
-    "GILD", "ISRG", "VRTX", "REGN", "MDT",
+    "JNJ",
+    "PFE",
+    "UNH",
+    "MRK",
+    "LLY",
+    "ABBV",
+    "TMO",
+    "ABT",
+    "BMY",
+    "AMGN",
+    "GILD",
+    "ISRG",
+    "VRTX",
+    "REGN",
+    "MDT",
     # Energy (8)
-    "XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX",
+    "XOM",
+    "CVX",
+    "COP",
+    "SLB",
+    "EOG",
+    "MPC",
+    "PSX",
     # Consumer / Retail (15)
-    "HD", "LOW", "COST", "WMT", "KO", "PEP", "MCD", "SBUX", "NKE", "TGT",
-    "TJX", "ROST", "DG", "DLTR", "YUM",
+    "HD",
+    "LOW",
+    "COST",
+    "WMT",
+    "KO",
+    "PEP",
+    "MCD",
+    "SBUX",
+    "NKE",
+    "TGT",
+    "TJX",
+    "ROST",
+    "DG",
+    "DLTR",
+    "YUM",
     # Industrials (10)
-    "CAT", "DE", "HON", "UPS", "RTX", "BA", "LMT", "GE", "MMM", "UNP",
+    "CAT",
+    "DE",
+    "HON",
+    "UPS",
+    "RTX",
+    "BA",
+    "LMT",
+    "GE",
+    "MMM",
+    "UNP",
     # Media / Telecom (7)
-    "DIS", "CMCSA", "T", "VZ", "TMUS", "CHTR", "WBD",
+    "DIS",
+    "CMCSA",
+    "T",
+    "VZ",
+    "TMUS",
+    "CHTR",
+    "WBD",
     # Other (10)
-    "V", "MA", "PYPL", "NEE", "D", "SO", "DUK", "ABNB", "COIN", "NOW",
+    "V",
+    "MA",
+    "PYPL",
+    "NEE",
+    "D",
+    "SO",
+    "DUK",
+    "ABNB",
+    "COIN",
+    "NOW",
 ]
 EARNINGS_LIMIT = 8
 
@@ -77,6 +174,7 @@ def color_eps(s: str | None) -> str:
 
 def main() -> None:
     import logging
+
     logging.getLogger("hedge_fund.data.client").setLevel(logging.ERROR)
 
     n = len(TICKERS)
@@ -91,10 +189,12 @@ def main() -> None:
         )
     with make_data_client() as fd:
         from datetime import date
+
         spy_prices = fd.get_prices("SPY", "2023-01-01", date.today().isoformat())
         spy_closes = {p.time[:10]: p.close for p in spy_prices}
 
         from hedge_fund.event_study.engine import _compute_ticker_events
+
         all_events = []
         for i, ticker in enumerate(TICKERS):
             progress(f"Fetching data... [{i + 1}/{n}] {ticker}")
@@ -104,9 +204,17 @@ def main() -> None:
     # Filter to labeled events only
     all_events = [e for e in all_events if e.eps_surprise is not None]
 
-    # Aggregate
-    from hedge_fund.event_study.engine import _aggregate
-    aggregates = _aggregate(all_events, 10_000, 42)
+    # NOTE: this script prints the per-event table only, and it gets there
+    # the long way round. engine.compute_car() already does all of this —
+    # per-ticker events, cross-sectional aggregation, t-tests, bootstrap CIs
+    # — and returns an EventStudyResult with .aggregates on it. This function
+    # instead drives the private _compute_ticker_events() itself, and until
+    # Sept 2026 also called the private _aggregate() and threw the result
+    # away: 10k bootstrap resamples computed every run and never read.
+    #
+    # So the library is finished and this demo CLI drifted away from it. The
+    # fix is to call compute_car() and render result.aggregates, not to
+    # rebuild the statistics here. See ARCHITECTURE.md Q2.
 
     # Clear progress line
     sys.stdout.write("\r" + " " * 60 + "\r")
@@ -115,7 +223,9 @@ def main() -> None:
     typed(f"Event Study: {len(all_events)} earnings events across {len(set(e.ticker for e in all_events))} tickers")
     print()
 
-    print(f"  {'Ticker':<6} {'Date':<12} {'Type':<6} {'EPS':<4}  {'CAR[0,1]':>8} {'CAR[0,5]':>8} {'CAR[0,20]':>8}   {'Beta':>5} {'R2':>5}")
+    print(
+        f"  {'Ticker':<6} {'Date':<12} {'Type':<6} {'EPS':<4}  {'CAR[0,1]':>8} {'CAR[0,5]':>8} {'CAR[0,20]':>8}   {'Beta':>5} {'R2':>5}"  # noqa: E501
+    )
     print(f"  {'-' * 78}")
 
     for e in sorted(all_events, key=lambda x: (x.ticker, x.event_date)):
@@ -136,6 +246,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    from hedge_fund.tui.keys import apply_credentials
+    from hedge_fund.config import apply_credentials
+
     apply_credentials()
     main()

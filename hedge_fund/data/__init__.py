@@ -7,16 +7,16 @@ picks one from HEDGE_FUND_DATA and wraps it in the disk cache.
 
 from hedge_fund.data.cached import CachedDataClient
 from hedge_fund.data.client import FDClient, FDClientError
-from hedge_fund.data.edgar import SEC_USER_AGENT_ENV, EdgarClient, EdgarError
+from hedge_fund.data.edgar import EdgarClient, EdgarError, SEC_USER_AGENT_ENV
 from hedge_fund.data.errors import DataClientError
 from hedge_fund.data.factory import (
+    cache_dir_for,
+    data_refresh,
     DATA_REFRESH_ENV,
+    data_source,
     DATA_SOURCE_ENV,
     DATA_SOURCES,
     DEFAULT_DATA_SOURCE,
-    cache_dir_for,
-    data_refresh,
-    data_source,
     make_data_client,
     missing_data_key,
     open_data_client,

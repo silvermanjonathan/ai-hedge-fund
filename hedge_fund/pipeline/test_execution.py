@@ -17,7 +17,10 @@ def test_floor_sizing_never_overshoots():
 
 def test_delta_against_existing_position():
     orders = build_orders(
-        {"AAPL": 0.25}, _positions(AAPL=5), {"AAPL": 250.0}, equity=10_000.0,
+        {"AAPL": 0.25},
+        _positions(AAPL=5),
+        {"AAPL": 250.0},
+        equity=10_000.0,
     )
     assert len(orders) == 1
     assert orders[0].side == "buy"
@@ -44,8 +47,10 @@ def test_sells_before_buys_alphabetical():
         equity=10_000.0,
     )
     assert [(o.ticker, o.side) for o in orders] == [
-        ("AMZN", "sell"), ("MSFT", "sell"),
-        ("AAPL", "buy"), ("NVDA", "buy"),
+        ("AMZN", "sell"),
+        ("MSFT", "sell"),
+        ("AAPL", "buy"),
+        ("NVDA", "buy"),
     ]
 
 

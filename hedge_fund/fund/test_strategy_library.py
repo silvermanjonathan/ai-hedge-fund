@@ -14,6 +14,4 @@ def test_shipped_strategy_library_is_valid():
         strategy = load_strategy(path)
         assert strategy.name == path.stem
         for m in strategy.models:
-            assert m.name in ALPHA_MODEL_REGISTRY, (
-                f"{path.name} references unknown model {m.name!r}"
-            )
+            assert m.name in ALPHA_MODEL_REGISTRY, f"{path.name} references unknown model {m.name!r}"

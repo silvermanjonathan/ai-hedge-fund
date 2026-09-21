@@ -15,7 +15,8 @@ mandate's benchmark's actual bars — holidays and half-weeks fall out
 naturally, no exchange calendar math.
 
 This is the fund-level counterpart to the per-model harness in engine.py
-(BacktestEngine simulates one alpha model's views with fixed mechanics;
+(BacktestEngine isolates ONE alpha model with fixed mechanics — see its
+module docstring; both are kept because they answer different questions;
 backtest_fund runs the whole shop).
 """
 
@@ -35,6 +36,12 @@ from hedge_fund.pipeline.run_cycle import run_cycle
 
 _PERIODS_PER_YEAR = {"daily": 252, "weekly": 52, "monthly": 12}
 
+# Default backtest window when no --start is given: ~18 months of history.
+# A backtest parameter, not a presentation constant — it lived in
+# hedge_fund/tui/shared.py, which forced the headless CLI to import the
+# interactive app's package for it.
+DEFAULT_BACKTEST_WEEKS = 78
+
 
 class FundBacktestMetrics(BaseModel):
     """The numbers that say whether the fund worked, and against what."""
@@ -44,7 +51,7 @@ class FundBacktestMetrics(BaseModel):
     sharpe_ratio: float
     max_drawdown_pct: float
     benchmark_return_pct: float
-    excess_return_pct: float          # fund total minus benchmark total
+    excess_return_pct: float  # fund total minus benchmark total
     n_cycles: int
     n_orders: int
 
@@ -55,15 +62,15 @@ class FundBacktestResult(BaseModel):
     `model_dump_json()` round-trips; this is the receipts file."""
 
     fund: str
-    start: str                        # first grid date actually traded
-    end: str                          # last grid date actually traded
+    start: str  # first grid date actually traded
+    end: str  # last grid date actually traded
     rebalance: str
     benchmark: str
-    universe: list[str]               # the tickers this backtest was run over
+    universe: list[str]  # the tickers this backtest was run over
     capital: float
     dates: list[str]
-    nav: list[float]                  # NAV after each cycle, one per date
-    benchmark_nav: list[float]        # benchmark scaled to the same capital
+    nav: list[float]  # NAV after each cycle, one per date
+    benchmark_nav: list[float]  # benchmark scaled to the same capital
     metrics: FundBacktestMetrics
     records: list[CycleRecord]
 
@@ -94,8 +101,7 @@ def backtest_fund(
     closes = {b.time[:10]: b.close for b in bars if start <= b.time[:10] <= end}
     if not closes:
         raise ValueError(
-            f"{spec.name}: no {spec.benchmark} bars in [{start}, {end}] — "
-            "cannot build the trading grid"
+            f"{spec.name}: no {spec.benchmark} bars in [{start}, {end}] — " "cannot build the trading grid"
         )
     grid = rebalance_grid(sorted(closes), spec.rebalance)
 
@@ -123,8 +129,7 @@ def backtest_fund(
         dates=grid,
         nav=nav,
         benchmark_nav=benchmark_nav,
-        metrics=_metrics(spec.capital, grid, nav, benchmark_nav,
-                         spec.rebalance, records),
+        metrics=_metrics(spec.capital, grid, nav, benchmark_nav, spec.rebalance, records),
         records=records,
     )
 
@@ -156,6 +161,40 @@ def rebalance_grid(days: list[str], cadence: str) -> list[str]:
 # Private helpers
 # ---------------------------------------------------------------------------
 
+
+def running_metrics(capital: float, nav: list[float], cadence: str) -> tuple[float, float]:
+    """Annualized Sharpe and max drawdown for an equity curve.
+
+    The single implementation. The backtest engine calls it once at the end
+    for the authoritative numbers, and the TUI calls it after every cycle to
+    drive its live stat tiles — so what you watch during a replay and what
+    the record reports cannot disagree. They were two implementations until
+    Sept 2026, one numpy and one `statistics`, kept in step by hand.
+
+    *nav* is the curve AFTER each rebalance, without the opening capital.
+    Capital is prepended here so the first tick's move is counted; passing a
+    curve that already includes it would double the first period.
+
+    Sharpe is the mean per-period return over its sample standard deviation
+    (ddof=1), annualized by the mandate's rebalance cadence. Excess return
+    over a risk-free rate is deliberately not modeled. Fewer than two
+    periods, or a flat curve, gives 0.0 rather than an infinity.
+    """
+    curve = np.array([capital] + list(nav), dtype=float)
+    returns = curve[1:] / curve[:-1] - 1
+
+    sd = float(returns.std(ddof=1)) if len(returns) > 1 else 0.0
+    sharpe = float(returns.mean() / sd) * float(np.sqrt(_PERIODS_PER_YEAR[cadence])) if sd > 0 else 0.0
+
+    peak = curve[0]
+    max_dd = 0.0
+    for value in curve:
+        peak = max(peak, value)
+        max_dd = max(max_dd, (peak - value) / peak)
+
+    return sharpe, max_dd
+
+
 def _metrics(
     capital: float,
     grid: list[str],
@@ -170,25 +209,7 @@ def _metrics(
     years = max(calendar_days / 365.25, 0.01)
     annualized = (1 + total) ** (1 / years) - 1
 
-    # Per-period returns over the curve including the starting capital, so
-    # the first tick's move counts too.
-    curve = np.array([capital] + nav)
-    returns = curve[1:] / curve[:-1] - 1
-    if len(returns) > 1 and float(returns.std(ddof=1)) > 0:
-        sharpe = float(returns.mean() / returns.std(ddof=1)) * np.sqrt(
-            _PERIODS_PER_YEAR[cadence]
-        )
-    else:
-        sharpe = 0.0
-
-    peak = curve[0]
-    max_dd = 0.0
-    for value in curve:
-        if value > peak:
-            peak = value
-        drawdown = (peak - value) / peak
-        if drawdown > max_dd:
-            max_dd = drawdown
+    sharpe, max_dd = running_metrics(capital, nav, cadence)
 
     benchmark_return = benchmark_nav[-1] / capital - 1
 

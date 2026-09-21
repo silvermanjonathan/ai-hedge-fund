@@ -13,12 +13,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from hedge_fund.data.protocol import DataClient
 from hedge_fund.data.models import EarningsRecord
+from hedge_fund.data.protocol import DataClient
 from hedge_fund.models import Signal
 from hedge_fund.signals.base import QuantModel
 
-_RETROSPECTIVE_CUTOFF_DAYS = 45   # drop filings whose data is stale vs report period
+_RETROSPECTIVE_CUTOFF_DAYS = 45  # drop filings whose data is stale vs report period
 _SOURCE_PRIORITY = {"8-K": 0, "10-Q": 1, "10-K": 2, "20-F": 3}  # 8-K = earliest announcement
 
 

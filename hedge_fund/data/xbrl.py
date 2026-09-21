@@ -51,24 +51,74 @@ _QUARTER_GAP = (80, 100)  # days between consecutive balance-sheet dates
 _LONGEST_FIRST = ("FY", "9M", "H", "Q")
 
 # us-gaap tags per input, in priority order. Resolved per period end.
-REVENUE = ("Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet", "RevenueFromContractWithCustomerIncludingAssessedTax")
+REVENUE = (
+    "Revenues",
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "SalesRevenueNet",
+    "RevenueFromContractWithCustomerIncludingAssessedTax",
+)
 NET_INCOME = ("NetIncomeLoss", "ProfitLoss", "NetIncomeLossAvailableToCommonStockholdersBasic")
 GROSS_PROFIT = ("GrossProfit",)
-COST_OF_REVENUE = ("CostOfRevenue", "CostOfGoodsAndServicesSold", "CostOfGoodsSold")
+COST_OF_REVENUE = (
+    "CostOfRevenue",
+    "CostOfGoodsAndServicesSold",
+    "CostOfGoodsSold",
+    # Added Sept 2026 after surveying what the 78 screened names actually
+    # file. NYT and four others report cost of revenue only under this tag,
+    # so gross margin was blank for them although the filing carries it.
+    "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
+)
 OPERATING_INCOME = ("OperatingIncomeLoss",)
 EQUITY = ("StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest")
 ASSETS_CURRENT = ("AssetsCurrent",)
 LIABILITIES_CURRENT = ("LiabilitiesCurrent",)
-OPERATING_CASH_FLOW = ("NetCashProvidedByUsedInOperatingActivities", "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations")
-CAPEX = ("PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets")
-DEBT_NONCURRENT = ("LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations")
+OPERATING_CASH_FLOW = (
+    "NetCashProvidedByUsedInOperatingActivities",
+    "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+)
+CAPEX = (
+    "PaymentsToAcquirePropertyPlantAndEquipment",
+    "PaymentsToAcquireProductiveAssets",
+    "PaymentsForCapitalImprovements",
+)
+# Debt tags, extended Sept 2026 from a survey of every screened name rather
+# than a sample. Five filers carried a real borrowing balance under a tag
+# none of these tuples listed, and read as having no debt at all.
+DEBT_NONCURRENT = (
+    "LongTermDebtNoncurrent",
+    "LongTermDebtAndCapitalLeaseObligations",
+    "UnsecuredLongTermDebt",
+    "SeniorNotes",
+)
 DEBT_TOTAL = ("LongTermDebt",)  # used as the whole when no noncurrent tag exists
 DEBT_CURRENT = ("DebtCurrent",)
-DEBT_CURRENT_PIECES = ("LongTermDebtCurrent", "ShortTermBorrowings", "CommercialPaper")
+DEBT_CURRENT_PIECES = (
+    "LongTermDebtCurrent",
+    "ShortTermBorrowings",
+    "CommercialPaper",
+    "UnsecuredDebtCurrent",
+    "ConvertibleDebtCurrent",
+    "LinesOfCreditCurrent",
+)
 EPS_DILUTED = ("EarningsPerShareDiluted",)  # unit USD/shares
 WEIGHTED_SHARES = ("WeightedAverageNumberOfDilutedSharesOutstanding", "WeightedAverageNumberOfSharesOutstandingBasic")
 SHARES_OUTSTANDING = ("CommonStockSharesOutstanding",)
 DEI_SHARES_OUTSTANDING = "EntityCommonStockSharesOutstanding"  # dei taxonomy, unit shares
+
+# Bump this whenever the tag tuples above, or the arithmetic in build_rows,
+# change what a row contains. It goes into the metrics cache key, so a stale
+# cache invalidates itself rather than silently serving values derived by the
+# old mapping.
+#
+# Without it --refresh-data was load-bearing: the Sept 2026 mapping fix
+# recovered nothing until the cache was refreshed by hand, and a run that
+# forgot the flag re-measured old data at full price with nothing in the
+# output to say so. Too sharp an edge to leave on a flag.
+#
+# 1  original mapping
+# 2  Sept 2026: CostOfGoodsAndServiceExcludingDDA, five debt tags,
+#    PaymentsForCapitalImprovements, total_debt current-pieces fallthrough
+DERIVATION_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -130,7 +180,16 @@ def _parse(entries: Iterable[dict]) -> list[Fact]:
             if form not in FORMS:
                 continue
             start = date.fromisoformat(e["start"]) if e.get("start") else None
-            facts.append(Fact(start=start, end=date.fromisoformat(e["end"]), val=float(e["val"]), filed=date.fromisoformat(e["filed"]), accn=str(e.get("accn", "")), form=form))
+            facts.append(
+                Fact(
+                    start=start,
+                    end=date.fromisoformat(e["end"]),
+                    val=float(e["val"]),
+                    filed=date.fromisoformat(e["filed"]),
+                    accn=str(e.get("accn", "")),
+                    form=form,
+                )
+            )
         except (KeyError, TypeError, ValueError):
             continue  # a malformed entry is not evidence
     return facts
@@ -161,7 +220,9 @@ def instant_at(book: FactBook, tags: Iterable[str], end: date, cutoff: date, uni
     return None
 
 
-def quarter_at(book: FactBook, tag: str, end: date, prev_end: date | None, cutoff: date, unit: str = "USD") -> float | None:
+def quarter_at(
+    book: FactBook, tag: str, end: date, prev_end: date | None, cutoff: date, unit: str = "USD"
+) -> float | None:
     """One quarter of *tag* ending at *end*: a quarterly fact, else a
     year-to-date fact minus the same tag's year-to-date fact ending at
     *prev_end* with the same start (Q4 = FY − 9M). Same tag only."""
@@ -179,7 +240,9 @@ def quarter_at(book: FactBook, tag: str, end: date, prev_end: date | None, cutof
     return None
 
 
-def quarter_first(book: FactBook, tags: Iterable[str], end: date, prev_end: date | None, cutoff: date, unit: str = "USD") -> float | None:
+def quarter_first(
+    book: FactBook, tags: Iterable[str], end: date, prev_end: date | None, cutoff: date, unit: str = "USD"
+) -> float | None:
     """The quarter from the first tag that yields one at this period end."""
     for tag in tags:
         value = quarter_at(book, tag, end, prev_end, cutoff, unit)
@@ -278,13 +341,25 @@ def total_debt(book: FactBook, end: date, cutoff: date) -> float | None:
     """Noncurrent plus current borrowings. With no noncurrent tag, LongTermDebt
     is taken as the whole and the current pieces are skipped (they would
     double count). None when nothing is tagged."""
+
+    def current_debt() -> float | None:
+        explicit = instant_at(book, DEBT_CURRENT, end, cutoff)
+        if explicit is not None:
+            return explicit
+        pieces = [instant_at(book, (tag,), end, cutoff) for tag in DEBT_CURRENT_PIECES]
+        found = [p for p in pieces if p is not None]
+        return sum(found) if found else None
+
     noncurrent = instant_at(book, DEBT_NONCURRENT, end, cutoff)
     if noncurrent is None:
-        return instant_at(book, DEBT_TOTAL, end, cutoff)
-    current = instant_at(book, DEBT_CURRENT, end, cutoff)
-    if current is None:
-        current = sum(instant_at(book, (tag,), end, cutoff) or 0.0 for tag in DEBT_CURRENT_PIECES)
-    return noncurrent + current
+        # LongTermDebt is the whole when it exists, so the current pieces are
+        # skipped to avoid double counting. When it does NOT exist either,
+        # fall through to those pieces rather than returning nothing: a filer
+        # with only short-term borrowings has debt, and used to read as
+        # having none. See test_filer_with_only_short_term_borrowings.
+        whole = instant_at(book, DEBT_TOTAL, end, cutoff)
+        return whole if whole is not None else current_debt()
+    return noncurrent + (current_debt() or 0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -353,14 +428,20 @@ def build_rows(companyfacts: dict, *, ticker: str, history: DailyHistory | None 
             currency="USD",
             filing_date=cutoff.isoformat(),
             market_cap=_sig(market_cap),
-            price_to_earnings_ratio=_sig(_ratio(market_cap, net_income) if net_income is not None and net_income > 0 else None),
+            price_to_earnings_ratio=_sig(
+                _ratio(market_cap, net_income) if net_income is not None and net_income > 0 else None
+            ),
             return_on_equity=_r6(_ratio(net_income, equity) if equity > 0 else None),
             gross_margin=_r6(_ratio(gross_profit, revenue)),
             operating_margin=_r6(_ratio(operating_income, revenue)),
             net_margin=_r6(_ratio(net_income, revenue)),
             debt_to_equity=_r6(_ratio(debt, equity) if equity > 0 else None),
             current_ratio=_r6(_ratio(assets_current, liabilities_current)),
-            revenue_growth=_r6(_ratio(revenue, revenue_year_ago) - 1 if revenue is not None and revenue_year_ago and revenue_year_ago > 0 else None),
+            revenue_growth=_r6(
+                _ratio(revenue, revenue_year_ago) - 1
+                if revenue is not None and revenue_year_ago and revenue_year_ago > 0
+                else None
+            ),
             earnings_per_share=_r6(eps),
             book_value_per_share=_r6(_ratio(equity, shares)),
             free_cash_flow_per_share=_r6(_ratio(fcf, shares)),

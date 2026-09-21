@@ -76,13 +76,14 @@ def run_cycle(
     held = broker.positions()
 
     marks, skipped = _mark_prices(
-        sorted(set(universe) | set(held)), as_of, held, data_client,
+        sorted(set(universe) | set(held)),
+        as_of,
+        held,
+        data_client,
     )
 
     cash_before = broker.cash()
-    equity_before = cash_before + sum(
-        p.shares * marks[t] for t, p in held.items()
-    )
+    equity_before = cash_before + sum(p.shares * marks[t] for t, p in held.items())
     if equity_before <= 0:
         raise ValueError(
             f"{spec.name}: equity is {equity_before:.2f} as of {as_of} — "
@@ -100,19 +101,23 @@ def run_cycle(
     for strategy, staff in fund.strategies:
         signals = _predict_all(staff, tradeable, as_of, data_client)
         blend = blend_signals(
-            signals, strategy.model_weights, strategy.blend.gross_target,
+            signals,
+            strategy.model_weights,
+            strategy.blend.gross_target,
             market_neutral=strategy.blend.market_neutral,
         )
         slice_ = strategy.weight / total_slice
         for ticker, weight in blend.weights.items():
             netted[ticker] += slice_ * weight
-        strategy_records.append(StrategyRecord(
-            name=strategy.name,
-            slice=slice_,
-            signals=signals,
-            convictions=blend.convictions,
-            weights=blend.weights,
-        ))
+        strategy_records.append(
+            StrategyRecord(
+                name=strategy.name,
+                slice=slice_,
+                signals=signals,
+                convictions=blend.convictions,
+                weights=blend.weights,
+            )
+        )
 
     risk = apply_limits(netted, spec.risk)
 
@@ -148,6 +153,7 @@ def run_cycle(
 # Private helpers
 # ---------------------------------------------------------------------------
 
+
 def _predict_all(
     staff: list,
     tradeable: list[str],
@@ -169,8 +175,7 @@ def _predict_all(
 
     shared = _SerializedDataClient(data_client)
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(model.predict, ticker, as_of, shared)
-                   for ticker, model in pairs]
+        futures = [pool.submit(model.predict, ticker, as_of, shared) for ticker, model in pairs]
         try:
             return [future.result() for future in futures]
         except BaseException:
@@ -230,9 +235,11 @@ def _mark_prices(
                 f"{_MARK_LOOKBACK_DAYS} days of {as_of} — cannot value the book"
             )
         else:
-            skipped.append(TickerSkip(
-                ticker=ticker,
-                reason=f"no close within {_MARK_LOOKBACK_DAYS} days of {as_of}",
-            ))
+            skipped.append(
+                TickerSkip(
+                    ticker=ticker,
+                    reason=f"no close within {_MARK_LOOKBACK_DAYS} days of {as_of}",
+                )
+            )
 
     return marks, skipped

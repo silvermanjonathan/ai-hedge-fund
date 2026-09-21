@@ -13,6 +13,4 @@ import warnings
 # Suppress it here so it's set before any entry point triggers an LLM load:
 # the TUI (imports hedge_fund.tui.app) and the non-interactive CLI (imports
 # hedge_fund.tui.shared) both go through this package.
-warnings.filterwarnings(
-    "ignore", message="Importing verbose from langchain root module"
-)
+warnings.filterwarnings("ignore", message="Importing verbose from langchain root module")

@@ -88,7 +88,12 @@ def test_satisfies_the_runtime_protocol():
 
 def test_unsupported_methods_raise_not_implemented_never_empty():
     client = _client()
-    for call in (lambda: client.get_news("TEST", "2025-01-15"), lambda: client.get_insider_trades("TEST", "2025-01-15"), lambda: client.get_earnings_history("TEST"), lambda: client.get_earnings("TEST")):
+    for call in (
+        lambda: client.get_news("TEST", "2025-01-15"),
+        lambda: client.get_insider_trades("TEST", "2025-01-15"),
+        lambda: client.get_earnings_history("TEST"),
+        lambda: client.get_earnings("TEST"),
+    ):
         with pytest.raises(NotImplementedError, match="free data source") as exc:
             call()
         assert not isinstance(exc.value, DataClientError)
@@ -151,7 +156,9 @@ def test_rows_are_built_once_per_facts_version():
     first = client.get_financial_metrics("TEST", "2025-01-15")
     second = client.get_financial_metrics("TEST", "2025-03-01")
     assert len(second) > len(first)
-    assert {r.report_period: r.model_dump() for r in first} == {r.report_period: r.model_dump() for r in second if r.filing_date <= "2025-01-15"}
+    assert {r.report_period: r.model_dump() for r in first} == {
+        r.report_period: r.model_dump() for r in second if r.filing_date <= "2025-01-15"
+    }
 
 
 def test_build_snapshot_over_the_free_client():
@@ -191,7 +198,15 @@ def test_context_manager_closes_edgar():
 
 def _frame(days, close=20.0, splits=None):
     index = pd.DatetimeIndex([pd.Timestamp(d, tz="America/New_York") for d in days], name="Date")
-    data = {"Open": [close] * len(days), "High": [close] * len(days), "Low": [close] * len(days), "Close": [close] * len(days), "Volume": [1000] * len(days), "Dividends": [0.0] * len(days), "Stock Splits": [(splits or {}).get(d, 0.0) for d in days]}
+    data = {
+        "Open": [close] * len(days),
+        "High": [close] * len(days),
+        "Low": [close] * len(days),
+        "Close": [close] * len(days),
+        "Volume": [1000] * len(days),
+        "Dividends": [0.0] * len(days),
+        "Stock Splits": [(splits or {}).get(d, 0.0) for d in days],
+    }
     return pd.DataFrame(data, index=index)
 
 
@@ -225,7 +240,12 @@ def test_empty_frame_and_missing_price_errors_mean_no_data(tmp_path):
     from yfinance import exceptions as yfe
 
     assert _source(FakeTicker(_frame([])), tmp_path).daily_bars("X", "2025-01-13", "2025-01-14") == []
-    assert _source(FakeTicker(error=yfe.YFPricesMissingError("X", {})), tmp_path).daily_bars("X", "2025-01-13", "2025-01-14") == []
+    assert (
+        _source(FakeTicker(error=yfe.YFPricesMissingError("X", {})), tmp_path).daily_bars(
+            "X", "2025-01-13", "2025-01-14"
+        )
+        == []
+    )
 
 
 def test_http_404_means_the_symbol_does_not_exist(tmp_path):
@@ -269,7 +289,10 @@ def test_predecessor_facts_are_merged_into_the_successor():
     class SuccessionEdgar(FakeEdgar):
         def __init__(self):
             super().__init__(ciks={"XOM": 2})
-            self._payloads = {1: synthetic_companyfacts(), 2: {"cik": 2, "entityName": "Successor", "facts": {"us-gaap": {}, "dei": {}}}}
+            self._payloads = {
+                1: synthetic_companyfacts(),
+                2: {"cik": 2, "entityName": "Successor", "facts": {"us-gaap": {}, "dei": {}}},
+            }
 
         def predecessor_cik(self, cik):
             return 1 if cik == 2 else None

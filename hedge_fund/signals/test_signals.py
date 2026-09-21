@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from hedge_fund.data.models import EarningsData, EarningsRecord
+from hedge_fund.models import Signal
 from hedge_fund.signals import PEADModel, QuantModel
 from hedge_fund.signals.base import AlphaModel
-from hedge_fund.models import Signal
 
 
 class MockFDClient:
@@ -20,7 +20,9 @@ class MockFDClient:
 
 def _rec(report_period, filing_date, surprise, source_type="8-K"):
     return EarningsRecord(
-        ticker="TEST", report_period=report_period, source_type=source_type,
+        ticker="TEST",
+        report_period=report_period,
+        source_type=source_type,
         filing_date=filing_date,
         quarterly=EarningsData(eps_surprise=surprise) if surprise else None,
     )
@@ -29,6 +31,7 @@ def _rec(report_period, filing_date, surprise, source_type="8-K"):
 # ---------------------------------------------------------------------------
 # Interface
 # ---------------------------------------------------------------------------
+
 
 class TestInterface:
     def test_quant_model_is_alpha_model(self):
@@ -48,6 +51,7 @@ class TestInterface:
 # ---------------------------------------------------------------------------
 # PEADModel.predict
 # ---------------------------------------------------------------------------
+
 
 class TestPEADPredict:
     def test_beat_fires_long(self):
@@ -98,10 +102,12 @@ class TestPEADPredict:
 
     def test_dedup_prefers_8k(self):
         # Same report period via 8-K and 10-Q; 8-K should be the chosen source
-        fd = MockFDClient([
-            _rec("2025-06-30", "2025-08-01", "BEAT", source_type="8-K"),
-            _rec("2025-06-30", "2025-08-02", "BEAT", source_type="10-Q"),
-        ])
+        fd = MockFDClient(
+            [
+                _rec("2025-06-30", "2025-08-01", "BEAT", source_type="8-K"),
+                _rec("2025-06-30", "2025-08-02", "BEAT", source_type="10-Q"),
+            ]
+        )
         sig = PEADModel().predict("TEST", "2025-08-01", fd)
         assert sig.value == 1.0
         assert sig.metadata["source_type"] == "8-K"

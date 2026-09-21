@@ -28,6 +28,7 @@ CLI reads. Humans click, machines write, the engine reads one thing.
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from datetime import date as _date
 from datetime import timedelta
@@ -35,14 +36,22 @@ from pathlib import Path
 
 from rich.console import Console
 
-from hedge_fund.backtesting import backtest_fund
+from hedge_fund.backtesting import backtest_fund, DEFAULT_BACKTEST_WEEKS
 from hedge_fund.brokers import SimBroker
-from hedge_fund.data import data_source, missing_data_key, open_data_client, unsupported_model_names
+from hedge_fund.config import apply_credentials
+from hedge_fund.data import (
+    data_source,
+    missing_data_key,
+    open_data_client,
+    unsupported_model_names,
+)
 from hedge_fund.fund import Fund, load_spec, normalize_universe
-from hedge_fund.paths import ensure_mandates_dir
+from hedge_fund.llm import DEFAULT_MODEL
+from hedge_fund.paths import ensure_mandates_dir, RECORDS_DIR
 from hedge_fund.pipeline import run_cycle
-from hedge_fund.tui.keys import apply_credentials
-from hedge_fund.tui.shared import _BACKTEST_WEEKS
+from hedge_fund.pipeline.preflight import estimate, naive
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -54,10 +63,13 @@ def main() -> None:
         "interactive app. With a mandate YAML: run one cycle and print the "
         "record.",
     )
-    parser.add_argument("mandate", nargs="?",
-                        help="path to a fund spec YAML, e.g. "
-                        "~/.hedge-fund/mandates/example.yaml "
-                        "(omit to launch the interactive app)")
+    parser.add_argument(
+        "mandate",
+        nargs="?",
+        help="path to a fund spec YAML, e.g. "
+        "~/.hedge-fund/mandates/example.yaml "
+        "(omit to launch the interactive app)",
+    )
     parser.add_argument(
         "--tickers",
         help="what to trade this run, comma or space separated, e.g. "
@@ -67,18 +79,17 @@ def main() -> None:
     parser.add_argument(
         "--date",
         default=_date.today().isoformat(),
-        help="as-of date YYYY-MM-DD (default: today); models only see data "
-        "filed by this date",
+        help="as-of date YYYY-MM-DD (default: today); models only see data " "filed by this date",
     )
     parser.add_argument(
-        "--backtest", action="store_true",
+        "--backtest",
+        action="store_true",
         help="backtest the mandate instead of running one cycle: one run_cycle "
         "per rebalance date from --start to --date, full result JSON on stdout",
     )
     parser.add_argument(
         "--start",
-        help=f"backtest start date YYYY-MM-DD (default: {_BACKTEST_WEEKS} weeks "
-        "before --date)",
+        help=f"backtest start date YYYY-MM-DD (default: {DEFAULT_BACKTEST_WEEKS} weeks " "before --date)",
     )
     parser.add_argument(
         "--model",
@@ -109,7 +120,25 @@ def main() -> None:
         "a cached answer has gone stale (raw EDGAR and Yahoo payloads within their "
         "TTL are still reused); also honoured as HEDGE_FUND_DATA_REFRESH=1",
     )
-    parser.add_argument("--out", help="also write the record JSON to this file")
+    parser.add_argument(
+        "--out",
+        help=f"write an EXTRA copy of the record here. Every live cycle is "
+        f"already saved to {RECORDS_DIR}/ whether or not this is passed",
+    )
+    parser.add_argument(
+        "--max-cost",
+        type=float,
+        default=None,
+        help="refuse to start if the estimated cost of this cycle exceeds this "
+        "many dollars (also HEDGE_FUND_MAX_COST). The estimate counts real "
+        "prompt-cache misses, so a week with no new filings estimates at $0",
+    )
+    parser.add_argument(
+        "--no-ledger",
+        action="store_true",
+        help="do not log this cycle's verdicts to the ledger. The record is "
+        "still written, so `aihf-ledger ingest` can pick it up later",
+    )
     args = parser.parse_args()
 
     if args.model:
@@ -156,9 +185,7 @@ def main() -> None:
     fund = Fund(spec)
 
     if args.backtest:
-        start = args.start or (
-            _date.fromisoformat(args.date) - timedelta(weeks=_BACKTEST_WEEKS)
-        ).isoformat()
+        start = args.start or (_date.fromisoformat(args.date) - timedelta(weeks=DEFAULT_BACKTEST_WEEKS)).isoformat()
         with open_data_client() as fd:
             with console.status(
                 f"[cyan]{spec.name}: backtesting {start} → {args.date} "
@@ -182,6 +209,8 @@ def main() -> None:
     broker = SimBroker(cash=spec.capital)
 
     with open_data_client() as fd:
+        if not _affordable(fund, args, universe, fd, console):
+            raise SystemExit(2)
         n_models = sum(len(staff) for _, staff in fund.strategies)
         with console.status(
             f"[cyan]{spec.name}: running one cycle as of {args.date} — "
@@ -192,14 +221,24 @@ def main() -> None:
             record = run_cycle(fund, args.date, broker, fd, universe)
 
     print(record.model_dump_json(indent=2))
+
+    # The record is the only durable trace of a cycle, and it is the ledger's
+    # input. It is written unconditionally: --out is an extra copy, not the
+    # thing that decides whether the run is remembered.
+    payload = record.model_dump_json(indent=2)
+    RECORDS_DIR.mkdir(parents=True, exist_ok=True)
+    # Same naming the TUI uses, so its history pane lists CLI runs too.
+    receipt = RECORDS_DIR / f"{spec.name}-run-{record.as_of}.json"
+    receipt.write_text(payload)
     if args.out:
-        Path(args.out).write_text(record.model_dump_json(indent=2))
+        Path(args.out).write_text(payload)
+
+    _log_verdicts(record, receipt, args, console)
 
     for sr in record.strategies:
         abstained = sum(1 for s in sr.signals if s.metadata.get("abstained") is True)
         console.print(
-            f"[dim]  {sr.name} ({sr.slice:.0%} of capital): "
-            f"{len(sr.signals)} signals ({abstained} abstained)[/]"
+            f"[dim]  {sr.name} ({sr.slice:.0%} of capital): " f"{len(sr.signals)} signals ({abstained} abstained)[/]"
         )
     n_signals = sum(len(sr.signals) for sr in record.strategies)
     console.print(
@@ -210,6 +249,74 @@ def main() -> None:
     )
     if record.skipped:
         console.print(f"[dim]skipped: {', '.join(s.ticker for s in record.skipped)}[/]")
+
+
+def _affordable(fund, args, universe: list[str], data_client, console: Console) -> bool:
+    """Print what this cycle will cost, and stop if it is more than allowed.
+
+    The guard is against surprise rather than spend. A cycle that dies
+    part-way keeps every verdict it paid for, so the exposure was never the
+    money — it was expecting $0 and getting full price because something
+    invalidated a cache nobody mentioned. So the estimate counts real misses,
+    and when there are any it says where they came from.
+    """
+    ceiling = args.max_cost
+    if ceiling is None:
+        raw = os.environ.get("HEDGE_FUND_MAX_COST", "").strip()
+        ceiling = float(raw) if raw else None
+
+    try:
+        with console.status("[cyan]estimating cost…", spinner="dots"):
+            est = estimate(fund, args.date, universe, data_client)
+    except Exception as exc:
+        # Never let the estimate be the reason a run does not start.
+        logger.warning("preflight: falling back to the upper bound: %s", exc)
+        n_models = sum(len(staff) for _, staff in fund.strategies)
+        est = naive(len(universe), n_models, os.environ.get("HEDGE_FUND_LLM_MODEL", DEFAULT_MODEL))
+
+    console.print(f"[dim]{est.render()}[/]")
+    if ceiling is None or est.cost is None or est.cost <= ceiling:
+        return True
+    console.print(
+        f"[red]refusing to start: estimated ${est.cost:,.2f} exceeds the "
+        f"${ceiling:,.2f} limit. Raise it with --max-cost, or set "
+        f"HEDGE_FUND_MAX_COST.[/]"
+    )
+    return False
+
+
+def _log_verdicts(record, receipt: Path, args, console: Console) -> None:
+    """Log this cycle's verdicts to the ledger, unless it would be lookahead.
+
+    Only live cycles are logged. A cycle run with a PAST --date is a manual
+    backtest of one: its forward returns are already settled, so logging it
+    would put a verdict into the scorecard whose outcome was known when it
+    was written. That is the same contamination the backtest path is kept
+    out of the ledger to avoid, and the scorecard cannot detect it — it
+    reads event_date and nothing else.
+
+    Skipping still leaves the record on disk, so a deliberate backfill
+    remains one `aihf-ledger ingest` away. Ingest is idempotent, keyed on
+    (school, ticker, snapshot_hash), so re-running costs nothing.
+    """
+    if args.no_ledger:
+        console.print(f"[dim]ledger: skipped (--no-ledger); record at {receipt}[/]")
+        return
+    if args.date != _date.today().isoformat():
+        console.print(
+            f"[dim]ledger: skipped — --date {args.date} is not today, and a verdict "
+            f"whose forward return is already settled would corrupt the scorecard. "
+            f"Record at {receipt}; ingest it deliberately if you meant to.[/]"
+        )
+        return
+    try:
+        from hedge_fund.ledger import Ledger
+
+        with open_data_client() as fd:
+            result = Ledger().ingest(receipt, fd)
+        console.print(f"[dim]ledger: {result}[/]")
+    except Exception as exc:  # a reporting side-effect must never fail the run
+        console.print(f"[yellow]ledger: could not log this cycle ({exc}); record at {receipt}[/]")
 
 
 if __name__ == "__main__":

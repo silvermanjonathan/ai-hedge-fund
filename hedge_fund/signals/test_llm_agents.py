@@ -6,15 +6,15 @@ import pytest
 
 from hedge_fund.data.client import FDClientError
 from hedge_fund.data.models import FinancialMetrics
-from hedge_fund.llm import LLMRefusal, PromptCache, extract_json
+from hedge_fund.llm import extract_json, LLMRefusal, PromptCache
 from hedge_fund.llm.client import LLMParseError
 from hedge_fund.models import Signal
 from hedge_fund.signals import BuffettAgent
 
-
 # ---------------------------------------------------------------------------
 # Fakes
 # ---------------------------------------------------------------------------
+
 
 class FakeLLM:
     """Canned-response LLM; counts calls; can raise instead."""
@@ -48,12 +48,25 @@ class MockDataClient:
 
 
 def _history(n=8):
-    quarters = ["2024-12-31", "2024-09-30", "2024-06-30", "2024-03-31",
-                "2023-12-31", "2023-09-30", "2023-06-30", "2023-03-31"]
+    quarters = [
+        "2024-12-31",
+        "2024-09-30",
+        "2024-06-30",
+        "2024-03-31",
+        "2023-12-31",
+        "2023-09-30",
+        "2023-06-30",
+        "2023-03-31",
+    ]
     return [
         FinancialMetrics(
-            ticker="TEST", report_period=q, period="ttm", filing_date=q,
-            return_on_equity=0.2, gross_margin=0.4, book_value_per_share=10.0,
+            ticker="TEST",
+            report_period=q,
+            period="ttm",
+            filing_date=q,
+            return_on_equity=0.2,
+            gross_margin=0.4,
+            book_value_per_share=10.0,
             market_cap=1e9,
         )
         for q in quarters[:n]
@@ -63,19 +76,23 @@ def _history(n=8):
 BULLISH = json.dumps({"signal": "bullish", "confidence": 80, "reasoning": "Wonderful business."})
 
 
-def _agent(tmp_path, llm):
-    return BuffettAgent(llm=llm, cache=PromptCache(tmp_path / "llm"))
+def _agent(tmp_path, llm, cache=None):
+    return BuffettAgent(llm=llm, cache=cache or PromptCache(tmp_path / "llm"))
 
 
 # ---------------------------------------------------------------------------
 # Signal folding
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("signal,confidence,expected", [
-    ("bullish", 80, 0.8),
-    ("bearish", 60, -0.6),
-    ("neutral", 90, 0.0),
-])
+
+@pytest.mark.parametrize(
+    "signal,confidence,expected",
+    [
+        ("bullish", 80, 0.8),
+        ("bearish", 60, -0.6),
+        ("neutral", 90, 0.0),
+    ],
+)
 def test_value_folding(tmp_path, signal, confidence, expected):
     response = json.dumps({"signal": signal, "confidence": confidence, "reasoning": "r"})
     agent = _agent(tmp_path, FakeLLM(response))
@@ -92,6 +109,7 @@ def test_value_folding(tmp_path, signal, confidence, expected):
 # Failure contract
 # ---------------------------------------------------------------------------
 
+
 def test_malformed_json_abstains(tmp_path):
     agent = _agent(tmp_path, FakeLLM("I am bullish, trust me."))
     sig = agent.predict("TEST", "2025-01-15", MockDataClient(metrics=_history()))
@@ -99,12 +117,60 @@ def test_malformed_json_abstains(tmp_path):
     assert sig.metadata["abstained"] is True
 
 
-def test_llm_error_abstains(tmp_path):
-    agent = _agent(tmp_path, FakeLLM(error=TimeoutError("llm timed out")))
-    sig = agent.predict("TEST", "2025-01-15", MockDataClient(metrics=_history()))
-    assert sig.value == 0.0
-    assert sig.metadata["abstained"] is True
-    assert "timed out" in sig.metadata["abstain_reason"]
+@pytest.mark.parametrize(
+    "error",
+    [
+        TimeoutError("llm timed out"),
+        ConnectionError("connection reset"),
+        RuntimeError("401 authentication_error: invalid x-api-key"),
+        RuntimeError("400 invalid_request_error: credit balance is too low"),
+        RuntimeError("429 rate_limit_error"),
+    ],
+)
+def test_infrastructure_failure_propagates_rather_than_abstaining(tmp_path, error):
+    """The bug this guards is silent, not loud.
+
+    Until Sept 2026 predict() caught bare Exception here, so an expired key
+    or an exhausted budget produced a Signal(abstained=True) — identical in
+    the record to a school declining a name. Ledger.ingest drops abstained
+    rows, so the evidence never reached the ledger either: an unattended run
+    reported success with most of its universe silently missing, and the
+    scorecard read it as schools passing on names nobody had asked about.
+
+    Nothing is caught here now. run_cycle's fan-out cancels the remaining
+    futures and the cycle dies before a CycleRecord exists, so there is no
+    partial cohort to mis-read.
+    """
+    agent = _agent(tmp_path, FakeLLM(error=error))
+    with pytest.raises(type(error)):
+        agent.predict("TEST", "2025-01-15", MockDataClient(metrics=_history()))
+
+
+def test_an_unrecognised_failure_propagates(tmp_path):
+    """The default is propagate, not abstain.
+
+    Enumerating provider exception types would only ever cover Anthropic;
+    every other provider raises its own. So anything not positively
+    identified as model-side is treated as infrastructure — the safe
+    direction, and the one that does not rot as providers change."""
+
+    class SomeNewProviderError(Exception):
+        pass
+
+    agent = _agent(tmp_path, FakeLLM(error=SomeNewProviderError("who knows")))
+    with pytest.raises(SomeNewProviderError):
+        agent.predict("TEST", "2025-01-15", MockDataClient(metrics=_history()))
+
+
+def test_a_failed_call_is_not_cached_as_a_verdict(tmp_path):
+    """A propagating failure must leave no trace a rerun would trust."""
+    from hedge_fund.llm import PromptCache
+
+    cache_dir = tmp_path / "llm"
+    agent = _agent(tmp_path, FakeLLM(error=TimeoutError("boom")), cache=PromptCache(cache_dir))
+    with pytest.raises(TimeoutError):
+        agent.predict("TEST", "2025-01-15", MockDataClient(metrics=_history()))
+    assert not list(cache_dir.glob("*.json")), "a failed call wrote a cache entry"
 
 
 def test_refusal_abstains_with_reason_refusal(tmp_path):
@@ -135,6 +201,7 @@ def test_data_layer_error_propagates(tmp_path):
 # ---------------------------------------------------------------------------
 # Cache = persistence
 # ---------------------------------------------------------------------------
+
 
 def test_cache_hit_skips_llm_call(tmp_path):
     llm = FakeLLM(BULLISH)
@@ -207,6 +274,7 @@ def test_failed_parse_still_persists_response(tmp_path):
 # Registry
 # ---------------------------------------------------------------------------
 
+
 def test_registry_names_match_keys(tmp_path):
     """Every registry entry instantiates and reports its own key as name."""
     from hedge_fund.signals import ALPHA_MODEL_REGISTRY, LLMAgent
@@ -232,8 +300,19 @@ def test_llm_personas_share_the_contract(tmp_path):
 
 
 SCHOOLS = [
-    "akre", "chanos", "dalio_resilience", "damodaran", "dreman", "earnings_quality_skeptic",
-    "fisher", "fundsmith", "greenblatt", "klarman", "pabrai", "quality_compounder", "schloss",
+    "akre",
+    "chanos",
+    "dalio_resilience",
+    "damodaran",
+    "dreman",
+    "earnings_quality_skeptic",
+    "fisher",
+    "fundsmith",
+    "greenblatt",
+    "klarman",
+    "pabrai",
+    "quality_compounder",
+    "schloss",
 ]
 
 
@@ -257,6 +336,7 @@ def test_school_personas_keep_the_school_framing(tmp_path, slug):
 # ---------------------------------------------------------------------------
 # extract_json
 # ---------------------------------------------------------------------------
+
 
 def test_extract_json_fenced():
     assert extract_json('here:\n```json\n{"a": 1}\n```\ndone') == {"a": 1}

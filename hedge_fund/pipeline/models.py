@@ -27,10 +27,10 @@ class StrategyRecord(BaseModel):
     """One strategy's slice of a cycle: its analysts' views and its sleeve."""
 
     name: str
-    slice: float                        # normalized capital slice of the fund
-    signals: list[Signal]               # this strategy's analysts x tradeable tickers
-    convictions: dict[str, float]       # blended views, pre-scaling
-    weights: dict[str, float]           # the sleeve, before netting across strategies
+    slice: float  # normalized capital slice of the fund
+    signals: list[Signal]  # this strategy's analysts x tradeable tickers
+    convictions: dict[str, float]  # blended views, pre-scaling
+    weights: dict[str, float]  # the sleeve, before netting across strategies
 
 
 class CycleRecord(BaseModel):
@@ -40,18 +40,18 @@ class CycleRecord(BaseModel):
 
     fund: str
     as_of: str
-    spec: FundSpec                      # self-contained audit copy
-    universe: list[str]                 # the tickers this cycle was asked to trade
-    marks: dict[str, float]             # ticker -> close used for sizing and NAV
+    spec: FundSpec  # self-contained audit copy
+    universe: list[str]  # the tickers this cycle was asked to trade
+    marks: dict[str, float]  # ticker -> close used for sizing and NAV
     skipped: list[TickerSkip]
-    strategies: list[StrategyRecord]    # every sleeve, incl. each thesis
-    target_weights: dict[str, float]    # the NETTED book, pre-risk
+    strategies: list[StrategyRecord]  # every sleeve, incl. each thesis
+    target_weights: dict[str, float]  # the NETTED book, pre-risk
     clamps: list[ClampEvent]
-    final_weights: dict[str, float]     # post-risk
+    final_weights: dict[str, float]  # post-risk
     equity_before: float
     cash_before: float
     orders: list[Order]
     fills: list[Fill]
-    positions: dict[str, int]           # signed shares after fills
+    positions: dict[str, int]  # signed shares after fills
     cash: float
-    nav: float                          # cash + sum(shares * mark)
+    nav: float  # cash + sum(shares * mark)

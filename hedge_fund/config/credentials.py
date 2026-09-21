@@ -13,7 +13,13 @@ rather than inventing a second store. Two rules follow from it:
    byte-for-byte intact. A settings screen must never eat a file it did not
    write.
 
-Textual-free on purpose, like shared.py — the CLI can use this too.
+This module is deliberately outside hedge_fund.tui. Every entry point
+needs credentials before it can do anything — `aihf`, `aihf-ledger`,
+`aihf-universe`, the backtest and event-study dev CLIs, and the weekly
+LaunchAgent run — and none of the headless ones should reach into the
+interactive app's package to get them. It imports no UI framework;
+hedge_fund/test_entry_points.py enforces that no headless entry point
+pulls Textual in transitively.
 """
 
 from __future__ import annotations
@@ -25,7 +31,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from hedge_fund.llm import PROVIDER_ENV_VARS, env_var_for  # noqa: F401  (re-export)
+from hedge_fund.llm import env_var_for, PROVIDER_ENV_VARS  # noqa: F401  (re-export)
 from hedge_fund.paths import ENV_PATH
 
 
@@ -49,9 +55,7 @@ def save_credential(env_var: str, value: str) -> Path:
         original = ENV_PATH.read_text()
         # Match an assignment at the start of a line, optionally exported and
         # optionally commented-out, so re-saving a disabled key revives it.
-        pattern = re.compile(
-            rf"^[ \t]*#?[ \t]*(?:export[ \t]+)?{re.escape(env_var)}[ \t]*=.*$",
-            re.MULTILINE)
+        pattern = re.compile(rf"^[ \t]*#?[ \t]*(?:export[ \t]+)?{re.escape(env_var)}[ \t]*=.*$", re.MULTILINE)
         updated, count = pattern.subn(lambda _: line, original, count=1)
         if count == 0:
             sep = "" if not original or original.endswith("\n") else "\n"

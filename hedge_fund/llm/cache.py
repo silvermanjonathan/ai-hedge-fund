@@ -41,6 +41,13 @@ class PromptCache:
     def __init__(self, cache_dir: Path | str = DEFAULT_CACHE_DIR) -> None:
         self._dir = Path(cache_dir)
 
+    @property
+    def directory(self) -> Path:
+        """Where entries live. The pre-flight estimate reads them to explain
+        why a miss is a miss, and must look in the cache the agent actually
+        uses rather than the default one."""
+        return self._dir
+
     def get(self, key: str) -> dict | None:
         path = self._dir / f"{key}.json"
         if not path.exists():

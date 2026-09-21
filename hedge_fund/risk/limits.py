@@ -22,12 +22,8 @@ class RiskLimits(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    max_position_pct: float = Field(
-        gt=0, le=1.0, description="max |weight| per ticker, as a fraction of equity"
-    )
-    max_gross_exposure: float = Field(
-        gt=0, description="max sum of |weights| across the book (1.0 = unlevered)"
-    )
+    max_position_pct: float = Field(gt=0, le=1.0, description="max |weight| per ticker, as a fraction of equity")
+    max_gross_exposure: float = Field(gt=0, description="max sum of |weights| across the book (1.0 = unlevered)")
 
 
 class ClampEvent(BaseModel):
@@ -64,9 +60,14 @@ def apply_limits(weights: dict[str, float], limits: RiskLimits) -> RiskResult:
         cap = limits.max_position_pct
         if abs(w) > cap:
             new_w = cap if w > 0 else -cap
-            clamps.append(ClampEvent(
-                limit="max_position_pct", ticker=ticker, before=w, after=new_w,
-            ))
+            clamps.append(
+                ClampEvent(
+                    limit="max_position_pct",
+                    ticker=ticker,
+                    before=w,
+                    after=new_w,
+                )
+            )
             clamped[ticker] = new_w
         else:
             clamped[ticker] = w
@@ -75,8 +76,12 @@ def apply_limits(weights: dict[str, float], limits: RiskLimits) -> RiskResult:
     if gross > limits.max_gross_exposure:
         scale = limits.max_gross_exposure / gross
         clamped = {t: w * scale for t, w in clamped.items()}
-        clamps.append(ClampEvent(
-            limit="max_gross_exposure", before=gross, after=limits.max_gross_exposure,
-        ))
+        clamps.append(
+            ClampEvent(
+                limit="max_gross_exposure",
+                before=gross,
+                after=limits.max_gross_exposure,
+            )
+        )
 
     return RiskResult(weights=clamped, clamps=clamps)

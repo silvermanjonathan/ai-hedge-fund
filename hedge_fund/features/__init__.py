@@ -6,10 +6,10 @@ surprise features, KPI momentum, cross-sector lead-lag, feature importance
 """
 
 from hedge_fund.features.snapshot import (
+    build_snapshot,
     FundamentalsSnapshot,
     InsufficientData,
     PeriodFundamentals,
-    build_snapshot,
 )
 
 __all__ = [

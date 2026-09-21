@@ -16,4 +16,14 @@ from hedge_fund.universe.finviz import (
     resolve,
 )
 
-__all__ = ["BASE", "EXPORT_URL", "FINVIZ_TOKEN_ENV", "PRESETS", "FinvizError", "edgar_filter", "fetch", "files_domestic_reports", "resolve"]
+__all__ = [
+    "BASE",
+    "EXPORT_URL",
+    "FINVIZ_TOKEN_ENV",
+    "PRESETS",
+    "FinvizError",
+    "edgar_filter",
+    "fetch",
+    "files_domestic_reports",
+    "resolve",
+]

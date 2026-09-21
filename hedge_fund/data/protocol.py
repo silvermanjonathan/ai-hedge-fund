@@ -49,7 +49,8 @@ class DataClient(Protocol):
         start_date: str,
         end_date: str,
         **kwargs,
-    ) -> list[Price]: ...
+    ) -> list[Price]:
+        ...
 
     def get_financial_metrics(
         self,
@@ -57,7 +58,8 @@ class DataClient(Protocol):
         end_date: str,
         period: str = "ttm",
         limit: int = 10,
-    ) -> list[FinancialMetrics]: ...
+    ) -> list[FinancialMetrics]:
+        ...
 
     def get_news(
         self,
@@ -65,7 +67,8 @@ class DataClient(Protocol):
         end_date: str,
         start_date: str | None = None,
         limit: int = 1000,
-    ) -> list[CompanyNews]: ...
+    ) -> list[CompanyNews]:
+        ...
 
     def get_insider_trades(
         self,
@@ -73,16 +76,21 @@ class DataClient(Protocol):
         end_date: str,
         start_date: str | None = None,
         limit: int = 1000,
-    ) -> list[InsiderTrade]: ...
+    ) -> list[InsiderTrade]:
+        ...
 
-    def get_company_facts(self, ticker: str) -> CompanyFacts | None: ...
+    def get_company_facts(self, ticker: str) -> CompanyFacts | None:
+        ...
 
-    def get_earnings(self, ticker: str) -> Earnings | None: ...
+    def get_earnings(self, ticker: str) -> Earnings | None:
+        ...
 
     def get_earnings_history(
         self,
         ticker: str,
         limit: int = 12,
-    ) -> list[EarningsRecord]: ...
+    ) -> list[EarningsRecord]:
+        ...
 
-    def get_market_cap(self, ticker: str, end_date: str) -> float | None: ...
+    def get_market_cap(self, ticker: str, end_date: str) -> float | None:
+        ...

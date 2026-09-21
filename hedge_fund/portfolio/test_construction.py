@@ -8,8 +8,7 @@ from hedge_fund.portfolio.construction import blend_signals
 
 def _sig(model, ticker, value, abstained=False):
     metadata = {"abstained": True} if abstained else {}
-    return Signal(model_name=model, ticker=ticker, date="2024-06-03",
-                  value=value, metadata=metadata)
+    return Signal(model_name=model, ticker=ticker, date="2024-06-03", value=value, metadata=metadata)
 
 
 def test_weighted_mean_with_unequal_weights():

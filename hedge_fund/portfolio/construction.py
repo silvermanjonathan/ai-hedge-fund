@@ -23,7 +23,7 @@ class BlendResult(BaseModel):
     """Per-ticker blended convictions and the target weights they imply."""
 
     convictions: dict[str, float]  # blended view per ticker, pre-scaling
-    weights: dict[str, float]      # target weight per ticker; sum(|w|) <= gross_target
+    weights: dict[str, float]  # target weight per ticker; sum(|w|) <= gross_target
 
 
 def blend_signals(
@@ -38,9 +38,11 @@ def blend_signals(
 
         conviction_t = sum(w_m * value_mt) / sum(w_m)
 
-    An abstained signal (metadata.abstained is True — LLM failure or
-    insufficient data) is excluded from numerator AND denominator: "no
-    opinion" must not masquerade as "opinion: neutral". A non-abstained 0.0
+    An abstained signal (metadata.abstained is True — the model refused,
+    its answer would not parse, or the snapshot was too thin) is excluded
+    from numerator AND denominator: "no opinion" must not masquerade as
+    "opinion: neutral". Infrastructure failures never reach here; they
+    abort the cycle, so an abstention always means a model was asked. A non-abstained 0.0
     (e.g. PEAD outside its window) is a real neutral vote and dilutes.
 
     With market_neutral, convictions are demeaned cross-sectionally before
@@ -68,10 +70,7 @@ def blend_signals(
         weight_total[signal.ticker] = weight_total.get(signal.ticker, 0.0) + w
 
     tickers = sorted({s.ticker for s in signals})
-    convictions = {
-        t: (weighted_sum[t] / weight_total[t]) if weight_total.get(t) else 0.0
-        for t in tickers
-    }
+    convictions = {t: (weighted_sum[t] / weight_total[t]) if weight_total.get(t) else 0.0 for t in tickers}
 
     scaled = convictions
     if market_neutral and tickers:

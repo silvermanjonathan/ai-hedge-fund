@@ -56,6 +56,7 @@ def _stub(client, responses):
 # Fail-loud contract
 # ---------------------------------------------------------------------------
 
+
 def test_http_500_raises(client):
     _stub(client, [_FakeResponse(500, text="internal error")])
     with pytest.raises(FDClientError) as exc_info:
@@ -92,13 +93,27 @@ def test_429_retries_then_raises_when_exhausted(client, monkeypatch):
 
 def test_429_then_success_recovers(client, monkeypatch):
     monkeypatch.setattr("hedge_fund.data.client.time.sleep", lambda s: None)
-    _stub(client, [
-        _FakeResponse(429),
-        _FakeResponse(200, {"prices": [{
-            "open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0,
-            "volume": 100, "time": "2024-01-02",
-        }]}),
-    ])
+    _stub(
+        client,
+        [
+            _FakeResponse(429),
+            _FakeResponse(
+                200,
+                {
+                    "prices": [
+                        {
+                            "open": 1.0,
+                            "close": 2.0,
+                            "high": 2.0,
+                            "low": 1.0,
+                            "volume": 100,
+                            "time": "2024-01-02",
+                        }
+                    ]
+                },
+            ),
+        ],
+    )
     prices = client.get_prices("AAPL", "2024-01-01", "2024-12-31")
     assert len(prices) == 1
 
@@ -106,6 +121,7 @@ def test_429_then_success_recovers(client, monkeypatch):
 # ---------------------------------------------------------------------------
 # Point-in-time contract
 # ---------------------------------------------------------------------------
+
 
 def test_financial_metrics_filters_on_filing_date(client):
     """The metrics query must use filing_date_lte (public-knowledge date),
@@ -123,27 +139,41 @@ def test_financial_metrics_filters_on_filing_date(client):
 # Pagination contract
 # ---------------------------------------------------------------------------
 
+
 def _price_row(day):
     return {
-        "open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0,
-        "volume": 100, "time": f"2024-01-{day:02d}",
+        "open": 1.0,
+        "close": 2.0,
+        "high": 2.0,
+        "low": 1.0,
+        "volume": 100,
+        "time": f"2024-01-{day:02d}",
     }
 
 
 def test_follows_next_page_url_to_the_end(client):
     """The API caps list responses at a fixed page size; the client must
     reassemble the full result by following next_page_url until absent."""
-    calls = _stub(client, [
-        _FakeResponse(200, {
-            "prices": [_price_row(1), _price_row(2)],
-            "next_page_url": "https://api.financialdatasets.ai/prices/?cursor=page2",
-        }),
-        _FakeResponse(200, {
-            "prices": [_price_row(3), _price_row(4)],
-            "next_page_url": "https://api.financialdatasets.ai/prices/?cursor=page3",
-        }),
-        _FakeResponse(200, {"prices": [_price_row(5)]}),
-    ])
+    calls = _stub(
+        client,
+        [
+            _FakeResponse(
+                200,
+                {
+                    "prices": [_price_row(1), _price_row(2)],
+                    "next_page_url": "https://api.financialdatasets.ai/prices/?cursor=page2",
+                },
+            ),
+            _FakeResponse(
+                200,
+                {
+                    "prices": [_price_row(3), _price_row(4)],
+                    "next_page_url": "https://api.financialdatasets.ai/prices/?cursor=page3",
+                },
+            ),
+            _FakeResponse(200, {"prices": [_price_row(5)]}),
+        ],
+    )
 
     prices = client.get_prices("AAPL", "2024-01-01", "2024-12-31")
 
@@ -163,13 +193,19 @@ def test_no_next_page_url_means_single_request(client):
 
 def test_mid_walk_404_keeps_accumulated_rows(client):
     """A 404 on page 2+ ends the stream; rows already fetched are kept."""
-    _stub(client, [
-        _FakeResponse(200, {
-            "prices": [_price_row(1)],
-            "next_page_url": "https://api.financialdatasets.ai/prices/?cursor=page2",
-        }),
-        _FakeResponse(404),
-    ])
+    _stub(
+        client,
+        [
+            _FakeResponse(
+                200,
+                {
+                    "prices": [_price_row(1)],
+                    "next_page_url": "https://api.financialdatasets.ai/prices/?cursor=page2",
+                },
+            ),
+            _FakeResponse(404),
+        ],
+    )
     prices = client.get_prices("AAPL", "2024-01-01", "2024-12-31")
     assert len(prices) == 1
 
@@ -177,26 +213,44 @@ def test_mid_walk_404_keeps_accumulated_rows(client):
 def test_mid_walk_500_still_fails_loud(client):
     """The fail-loud contract survives pagination: a real failure on any
     page raises instead of silently returning a partial series."""
-    _stub(client, [
-        _FakeResponse(200, {
-            "prices": [_price_row(1)],
-            "next_page_url": "https://api.financialdatasets.ai/prices/?cursor=page2",
-        }),
-        _FakeResponse(500, text="internal error"),
-    ])
+    _stub(
+        client,
+        [
+            _FakeResponse(
+                200,
+                {
+                    "prices": [_price_row(1)],
+                    "next_page_url": "https://api.financialdatasets.ai/prices/?cursor=page2",
+                },
+            ),
+            _FakeResponse(500, text="internal error"),
+        ],
+    )
     with pytest.raises(FDClientError):
         client.get_prices("AAPL", "2024-01-01", "2024-12-31")
 
 
 def test_financial_metrics_parses_filing_metadata(client):
-    _stub(client, [_FakeResponse(200, {"financial_metrics": [{
-        "ticker": "AAPL",
-        "report_period": "2024-03-30",
-        "period": "quarterly",
-        "filing_date": "2024-05-02",
-        "filing_datetime": "2024-05-02T16:31:00-04:00",
-        "market_cap": 3.0e12,
-    }]})])
+    _stub(
+        client,
+        [
+            _FakeResponse(
+                200,
+                {
+                    "financial_metrics": [
+                        {
+                            "ticker": "AAPL",
+                            "report_period": "2024-03-30",
+                            "period": "quarterly",
+                            "filing_date": "2024-05-02",
+                            "filing_datetime": "2024-05-02T16:31:00-04:00",
+                            "market_cap": 3.0e12,
+                        }
+                    ]
+                },
+            )
+        ],
+    )
 
     m = client.get_financial_metrics("AAPL", "2024-06-30")[0]
 

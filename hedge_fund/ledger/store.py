@@ -1,9 +1,22 @@
 """The verdict ledger: every distinct verdict, logged once, priced on its day.
 
-A verdict's identity is (school, ticker, snapshot_hash). The first cycle that
-carries it appends one row, dated by that cycle's as_of; every later cycle
-that repeats it — a cache hit between filings — is skipped, so a verdict is
-never double-counted. The entry price is the last close on or before the
+A verdict's identity is (school, ticker, prompt_key) — the school, the name,
+and the exact question it was asked, which covers the persona prompt, the
+model, the effort and the rendered snapshot. The first cycle that carries it
+appends one row, dated by that cycle's as_of; every later cycle that repeats
+it — a cache hit between filings — is skipped, so a verdict is never
+double-counted.
+
+Keying on the question rather than on the facts is deliberate (Sept 2026).
+It was (school, ticker, snapshot_hash), which deduplicated by what was TRUE
+rather than by what was ASKED — so improving a prompt produced fresh verdicts
+that the ledger silently discarded as repeats of the old ones. Two answers on
+identical facts under different instructions are different events.
+
+The consequence is that a prompt edit re-logs the whole cohort at the current
+price, so a school can hold two rows for one name weeks apart. Both are an
+honest record of what it said when; whether the SCORER should treat them as
+two observations is a separate question (see ARCHITECTURE.md §11.10). The entry price is the last close on or before the
 event date, from the data client; if it cannot be fetched the row is kept
 with a null price and the scorer leaves it out. No price is ever estimated.
 """
@@ -27,7 +40,22 @@ DEFAULT_LEDGER_PATH = USER_DIR / "ledger" / "verdicts.jsonl"
 BENCHMARK = "SPY"
 _PRICE_LOOKBACK_DAYS = 7
 
-FIELDS = ("key", "school", "ticker", "snapshot_hash", "filing_date", "signal", "confidence", "value", "desk", "event_date", "logged_at", "entry_close", "spy_close", "thesis")
+FIELDS = (
+    "key",
+    "school",
+    "ticker",
+    "snapshot_hash",
+    "filing_date",
+    "signal",
+    "confidence",
+    "value",
+    "desk",
+    "event_date",
+    "logged_at",
+    "entry_close",
+    "spy_close",
+    "thesis",
+)
 
 
 @dataclass(frozen=True)
@@ -54,17 +82,34 @@ class Ledger:
     # Reading
     # ------------------------------------------------------------------
 
-    def rows(self) -> list[dict]:
-        return list(self._rows)
+    def rows(self, since: str | None = None) -> list[dict]:
+        """Every row, or only those made on or after *since* (YYYY-MM-DD).
+
+        The cutoff exists because a universe change makes older verdicts
+        incomparable: they grade a school on names it will never be shown
+        again, against a universe bar built from a different screen.
+        Nothing is deleted — the rows stay as history and simply fall
+        outside the window.
+        """
+        if since is None:
+            return list(self._rows)
+        return [r for r in self._rows if (r.get("event_date") or "") >= since]
 
     def __len__(self) -> int:
         return len(self._rows)
 
-    def latest_per_ticker_school(self) -> dict[tuple[str, str], dict]:
+    def latest_per_ticker_school(self, since: str | None = None) -> dict[tuple[str, str], dict]:
         """For each (ticker, school), the row with the greatest filing_date
-        (ties and missing dates fall back to event_date, then log order)."""
+        (ties and missing dates fall back to event_date, then log order).
+
+        Honours *since* for the same reason the scorecard does, and it
+        matters more here: this feeds the candidates playbook, which is the
+        output that gets acted on. Without the cutoff a name that has left
+        the universe keeps surfacing as an entry candidate on the strength
+        of a verdict from a screen that no longer exists.
+        """
         latest: dict[tuple[str, str], dict] = {}
-        for row in self._rows:
+        for row in self.rows(since):
             key = (row["ticker"], row["school"])
             if key not in latest or _recency(row) > _recency(latest[key]):
                 latest[key] = row
@@ -102,7 +147,19 @@ class Ledger:
                     if not snapshot_hash or label not in ("bullish", "bearish", "neutral"):
                         skipped += 1  # not an LLM verdict (a quant model's signal)
                         continue
-                    key = f"{signal['model_name']}|{signal['ticker']}|{snapshot_hash}"
+                    # Identity is what was ASKED, not what was true. A
+                    # verdict is a school's answer to a question, and the
+                    # question is the whole prompt — persona, model, effort
+                    # and the rendered snapshot. Two answers on identical
+                    # facts under different instructions are different
+                    # events. prompt_key hashes exactly that; snapshot_hash
+                    # was encoding "what was true" where this needs "what
+                    # was asked", so a prompt change used to be silently
+                    # deduplicated away. Older rows keyed on snapshot_hash
+                    # keep their keys; both are opaque 24-char digests and
+                    # cannot collide.
+                    identity = meta.get("prompt_key") or snapshot_hash
+                    key = f"{signal['model_name']}|{signal['ticker']}|{identity}"
                     if key in self._keys:
                         skipped += 1
                         continue
@@ -116,6 +173,9 @@ class Ledger:
                         "snapshot_hash": snapshot_hash,
                         "filing_date": signal.get("filing_date"),
                         "signal": label,
+                        # Why a neutral is neutral. Rows written before
+                        # Sept 2026 have none, and read as unknown.
+                        "basis": meta.get("basis"),
                         "confidence": float(confidence) if confidence is not None else None,
                         "value": float(signal.get("value", 0.0)),
                         "desk": desk,

@@ -13,6 +13,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from hedge_fund.data import xbrl
 from hedge_fund.data.prices import DailyHistory
 from hedge_fund.data.xbrl import (
     build_rows,
@@ -69,7 +70,15 @@ def synthetic_companyfacts(drop: set[str] = frozenset(), extra_quarterly: dict[s
         entries: list[tuple[str, str, dict]] = []
 
         def add(key, tag, val, start=None, end_=end):
-            entry = {"end": end_, "val": val, "accn": accn, "fy": int(end[:4]), "fp": "FY" if form == "10-K" else f"Q{qn + 1}", "form": form, "filed": filed}
+            entry = {
+                "end": end_,
+                "val": val,
+                "accn": accn,
+                "fy": int(end[:4]),
+                "fp": "FY" if form == "10-K" else f"Q{qn + 1}",
+                "form": form,
+                "filed": filed,
+            }
             if start is not None:
                 entry["start"] = start
             entries.append((key, tag, entry))
@@ -88,7 +97,12 @@ def synthetic_companyfacts(drop: set[str] = frozenset(), extra_quarterly: dict[s
             add("USD", tag, sum(values[i - qn : i + 1]), start=fy_start)
         for tag, values in INSTANTS.items():
             add("USD", tag, values[i])
-        add("dei", "EntityCommonStockSharesOutstanding", DEI_SHARES, end_=(date.fromisoformat(filed) - timedelta(days=10)).isoformat())
+        add(
+            "dei",
+            "EntityCommonStockSharesOutstanding",
+            DEI_SHARES,
+            end_=(date.fromisoformat(filed) - timedelta(days=10)).isoformat(),
+        )
         own.append(entries)
 
     facts: dict[str, dict] = {"dei": {}, "us-gaap": {}}
@@ -106,7 +120,11 @@ def synthetic_companyfacts(drop: set[str] = frozenset(), extra_quarterly: dict[s
         if i >= 4:  # this year's filing repeats last year's numbers as comparatives
             _, filed, form, _ = FILINGS[i]
             for key, tag, entry in own[i - 4]:
-                put(key, tag, {**entry, "val": entry["val"] + 1, "filed": filed, "form": form, "accn": f"0000000000-{i:02d}"})
+                put(
+                    key,
+                    tag,
+                    {**entry, "val": entry["val"] + 1, "filed": filed, "form": form, "accn": f"0000000000-{i:02d}"},
+                )
     return {"cik": 1, "entityName": "Test Co", "facts": facts}
 
 
@@ -181,7 +199,9 @@ def test_ttm_is_none_when_a_quarter_is_missing():
     facts = synthetic_companyfacts()
     # Lose every revenue fact ending 2023-06-30 (own quarterly and 6M, and the
     # 2024 comparatives): any trailing year that needs Q2-2023 revenue is None.
-    facts["facts"]["us-gaap"]["Revenues"]["units"]["USD"] = [e for e in facts["facts"]["us-gaap"]["Revenues"]["units"]["USD"] if e["end"] != "2023-06-30"]
+    facts["facts"]["us-gaap"]["Revenues"]["units"]["USD"] = [
+        e for e in facts["facts"]["us-gaap"]["Revenues"]["units"]["USD"] if e["end"] != "2023-06-30"
+    ]
     rows = rows_by_period(build_rows(facts, ticker="TEST", history=fake_history()))
     assert rows["2024-03-31"].net_margin is None  # window Q2'23..Q1'24: revenue TTM broke
     assert rows["2024-03-31"].return_on_equity is not None  # net income did not
@@ -233,7 +253,9 @@ def test_late_tagged_comparative_is_not_visible_to_earlier_rows():
     facts = synthetic_companyfacts()
     usd = facts["facts"]["us-gaap"]["OperatingIncomeLoss"]["units"]["USD"]
     # Operating income for Q1-2023 first appears in the 2024 filing (as a comparative).
-    facts["facts"]["us-gaap"]["OperatingIncomeLoss"]["units"]["USD"] = [e for e in usd if not (e["end"] == "2023-03-31" and e["filed"] == "2023-05-05")]
+    facts["facts"]["us-gaap"]["OperatingIncomeLoss"]["units"]["USD"] = [
+        e for e in usd if not (e["end"] == "2023-03-31" and e["filed"] == "2023-05-05")
+    ]
     by = rows_by_period(build_rows(facts, ticker="TEST", history=fake_history()))
     assert by["2023-12-31"].operating_margin is None  # cutoff 2024-02-20: Q1'23 OI unknown
     assert by["2024-03-31"].operating_margin == approx((22 + 24 + 26 + 28) / 500)  # Q2'23..Q1'24
@@ -246,7 +268,9 @@ def test_late_tagged_comparative_is_not_visible_to_earlier_rows():
 
 def test_gross_profit_falls_back_to_revenue_minus_cost_of_revenue():
     facts = synthetic_companyfacts(drop={"GrossProfit"}, extra_quarterly={"CostOfRevenue": [r * 0.6 for r in REVENUE]})
-    assert rows_by_period(build_rows(facts, ticker="TEST", history=fake_history()))["2024-09-30"].gross_margin == approx(0.4)
+    assert rows_by_period(build_rows(facts, ticker="TEST", history=fake_history()))[
+        "2024-09-30"
+    ].gross_margin == approx(0.4)
 
 
 def test_tag_priority_resolves_per_period_end():
@@ -254,12 +278,18 @@ def test_tag_priority_resolves_per_period_end():
     facts = synthetic_companyfacts()
     usd = facts["facts"]["us-gaap"]["Revenues"]["units"]["USD"]
     facts["facts"]["us-gaap"]["Revenues"]["units"]["USD"] = [e for e in usd if e["end"] < "2024-01-01"]
-    facts["facts"]["us-gaap"]["RevenueFromContractWithCustomerExcludingAssessedTax"] = {"units": {"USD": [e for e in usd if e["end"] >= "2024-01-01"]}}
-    assert rows_by_period(build_rows(facts, ticker="TEST", history=fake_history()))["2024-09-30"].net_margin == approx(58 / 580)
+    facts["facts"]["us-gaap"]["RevenueFromContractWithCustomerExcludingAssessedTax"] = {
+        "units": {"USD": [e for e in usd if e["end"] >= "2024-01-01"]}
+    }
+    assert rows_by_period(build_rows(facts, ticker="TEST", history=fake_history()))["2024-09-30"].net_margin == approx(
+        58 / 580
+    )
 
 
 def test_bank_like_filer_has_rows_with_none_margins():
-    facts = synthetic_companyfacts(drop={"Revenues", "GrossProfit", "OperatingIncomeLoss", "AssetsCurrent", "LiabilitiesCurrent"})
+    facts = synthetic_companyfacts(
+        drop={"Revenues", "GrossProfit", "OperatingIncomeLoss", "AssetsCurrent", "LiabilitiesCurrent"}
+    )
     row = rows_by_period(build_rows(facts, ticker="BANK", history=fake_history()))["2024-09-30"]
     assert row.gross_margin is None and row.current_ratio is None and row.revenue_growth is None
     assert row.return_on_equity == approx(58 / 560)
@@ -268,9 +298,15 @@ def test_bank_like_filer_has_rows_with_none_margins():
 
 def test_non_usd_units_and_other_forms_are_ignored():
     facts = synthetic_companyfacts()
-    facts["facts"]["us-gaap"]["Revenues"]["units"]["EUR"] = [{"start": "2024-07-01", "end": "2024-09-30", "val": 9e9, "filed": "2024-11-03", "accn": "x", "form": "10-Q"}]
-    facts["facts"]["us-gaap"]["Revenues"]["units"]["USD"].append({"start": "2024-07-01", "end": "2024-09-30", "val": 9e9, "filed": "2024-10-01", "accn": "y", "form": "8-K"})
-    assert rows_by_period(build_rows(facts, ticker="TEST", history=fake_history()))["2024-09-30"].net_margin == approx(58 / 580)
+    facts["facts"]["us-gaap"]["Revenues"]["units"]["EUR"] = [
+        {"start": "2024-07-01", "end": "2024-09-30", "val": 9e9, "filed": "2024-11-03", "accn": "x", "form": "10-Q"}
+    ]
+    facts["facts"]["us-gaap"]["Revenues"]["units"]["USD"].append(
+        {"start": "2024-07-01", "end": "2024-09-30", "val": 9e9, "filed": "2024-10-01", "accn": "y", "form": "8-K"}
+    )
+    assert rows_by_period(build_rows(facts, ticker="TEST", history=fake_history()))["2024-09-30"].net_margin == approx(
+        58 / 580
+    )
 
 
 def test_debt_composition_priority():
@@ -278,11 +314,15 @@ def test_debt_composition_priority():
     assert rows_by_period(build_rows(base, ticker="T"))["2024-09-30"].debt_to_equity == approx(220 / 560)
     # DebtCurrent present -> used instead of the pieces
     with_current = synthetic_companyfacts(extra_quarterly={})
-    with_current["facts"]["us-gaap"]["DebtCurrent"] = {"units": {"USD": [{"end": "2024-09-30", "val": 50, "filed": "2024-11-03", "accn": "z", "form": "10-Q"}]}}
+    with_current["facts"]["us-gaap"]["DebtCurrent"] = {
+        "units": {"USD": [{"end": "2024-09-30", "val": 50, "filed": "2024-11-03", "accn": "z", "form": "10-Q"}]}
+    }
     assert rows_by_period(build_rows(with_current, ticker="T"))["2024-09-30"].debt_to_equity == approx(250 / 560)
     # no noncurrent tag -> LongTermDebt is the whole, current pieces skipped
     total_only = synthetic_companyfacts(drop={"LongTermDebtNoncurrent"})
-    total_only["facts"]["us-gaap"]["LongTermDebt"] = {"units": {"USD": [{"end": "2024-09-30", "val": 300, "filed": "2024-11-03", "accn": "z", "form": "10-Q"}]}}
+    total_only["facts"]["us-gaap"]["LongTermDebt"] = {
+        "units": {"USD": [{"end": "2024-09-30", "val": 300, "filed": "2024-11-03", "accn": "z", "form": "10-Q"}]}
+    }
     assert rows_by_period(build_rows(total_only, ticker="T"))["2024-09-30"].debt_to_equity == approx(300 / 560)
 
 
@@ -320,7 +360,9 @@ def test_multi_class_cover_page_counts_are_summed():
 
 def test_shares_fall_back_to_balance_sheet_count():
     facts = synthetic_companyfacts(drop={"EntityCommonStockSharesOutstanding"})
-    facts["facts"]["us-gaap"]["CommonStockSharesOutstanding"] = {"units": {"shares": [{"end": "2024-09-30", "val": 80, "filed": "2024-11-03", "accn": "z", "form": "10-Q"}]}}
+    facts["facts"]["us-gaap"]["CommonStockSharesOutstanding"] = {
+        "units": {"shares": [{"end": "2024-09-30", "val": 80, "filed": "2024-11-03", "accn": "z", "form": "10-Q"}]}
+    }
     assert rows_by_period(build_rows(facts, ticker="T"))["2024-09-30"].book_value_per_share == approx(560 / 80)
 
 
@@ -340,7 +382,16 @@ def test_merge_companyfacts_keeps_first_reported_values():
     for taxonomy in ("us-gaap", "dei"):
         for tag, body in predecessor["facts"][taxonomy].items():
             for unit, entries in body["units"].items():
-                kept = [dict(e, accn="succ", filed="2024-11-03", **({"val": e["val"] + 1} if e["end"] == "2023-09-30" else {})) for e in entries if e["end"] >= "2024-09-30" or e["end"] == "2023-09-30"]
+                kept = [
+                    dict(
+                        e,
+                        accn="succ",
+                        filed="2024-11-03",
+                        **({"val": e["val"] + 1} if e["end"] == "2023-09-30" else {}),
+                    )
+                    for e in entries
+                    if e["end"] >= "2024-09-30" or e["end"] == "2023-09-30"
+                ]
                 if kept:
                     successor["facts"][taxonomy].setdefault(tag, {"units": {}})["units"][unit] = kept
     merged = merge_companyfacts([successor, predecessor])
@@ -348,3 +399,76 @@ def test_merge_companyfacts_keeps_first_reported_values():
     assert "2023-03-31" in rows and "2024-09-30" in rows  # history from both filers
     assert rows["2023-09-30"].filing_date == "2023-11-03"  # predecessor's original filing, not the comparative
     assert rows["2024-09-30"].net_margin == approx(58 / 580)
+
+
+# ---------------------------------------------------------------------------
+# Debt assembly — named for the filers that break it, not the lines
+# ---------------------------------------------------------------------------
+
+
+def _debt_book(**tags):
+    """A FactBook carrying only the given instant tags, one fact each."""
+    facts = {
+        tag: {"units": {"USD": [{"end": "2026-06-30", "val": val, "filed": "2026-08-01", "accn": "a", "form": "10-Q"}]}}
+        for tag, val in tags.items()
+    }
+    return xbrl.FactBook({"facts": {"us-gaap": facts}})
+
+
+END, CUTOFF = date(2026, 6, 30), date(2026, 9, 1)
+
+
+def test_filer_with_only_short_term_borrowings():
+    """The case the original fallthrough missed.
+
+    total_debt skipped the current pieces whenever there was no noncurrent
+    tag, because LongTermDebt is the whole when it exists and adding the
+    pieces would double count. But when LongTermDebt is absent TOO, that
+    returned None — so a filer whose only borrowing is short-term read as
+    having no debt at all, and its debt/equity came back blank. Two of the
+    78 screened names were in exactly this state.
+    """
+    book = _debt_book(ShortTermBorrowings=250.0, StockholdersEquity=1000.0)
+    assert xbrl.total_debt(book, END, CUTOFF) == 250.0
+
+
+def test_filer_with_only_a_current_debt_tag():
+    book = _debt_book(DebtCurrent=400.0)
+    assert xbrl.total_debt(book, END, CUTOFF) == 400.0
+
+
+def test_long_term_debt_is_still_the_whole_and_pieces_are_not_added():
+    """The behaviour the fallthrough was protecting. LongTermDebt already
+    includes the current portion for these filers, so adding
+    LongTermDebtCurrent on top would double count it."""
+    book = _debt_book(LongTermDebt=900.0, LongTermDebtCurrent=100.0)
+    assert xbrl.total_debt(book, END, CUTOFF) == 900.0
+
+
+def test_noncurrent_plus_current_when_both_are_reported():
+    book = _debt_book(LongTermDebtNoncurrent=800.0, DebtCurrent=150.0)
+    assert xbrl.total_debt(book, END, CUTOFF) == 950.0
+
+
+def test_a_filer_with_no_borrowings_tagged_still_reports_nothing():
+    """Absence is not zero. Five of 34 names carried a real balance under a
+    tag the mapping did not read, so an untagged filer cannot be assumed
+    debt-free — the snapshot says 'not reported', never '0'."""
+    assert xbrl.total_debt(_debt_book(StockholdersEquity=1000.0), END, CUTOFF) is None
+
+
+@pytest.mark.parametrize(
+    "tag",
+    ["SeniorNotes", "UnsecuredLongTermDebt", "UnsecuredDebtCurrent", "ConvertibleDebtCurrent", "LinesOfCreditCurrent"],
+)
+def test_debt_tags_added_from_the_september_survey(tag):
+    """Each was found carrying a real borrowing balance for a screened name
+    whose debt/equity was blank. Named individually so removing one fails
+    loudly rather than silently re-blanking a filer."""
+    assert xbrl.total_debt(_debt_book(**{tag: 500.0}), END, CUTOFF) == 500.0
+
+
+def test_cost_of_revenue_reads_the_excluding_dda_tag():
+    """NYT and four others file cost of revenue only under this tag, so
+    gross margin was blank although the filing carried it."""
+    assert "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization" in xbrl.COST_OF_REVENUE

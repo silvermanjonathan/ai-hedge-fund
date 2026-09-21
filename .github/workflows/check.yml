@@ -1,0 +1,65 @@
+# The check from CLAUDE.md, run on every push and pull request.
+#
+# Why this exists: the weekly desk run fires unattended via a macOS
+# LaunchAgent (scripts/com.aihf.weekly.plist, Mondays at 10:00). Without CI
+# a break lands silently and is discovered by a failed Monday run, after the
+# Finviz screens have already moved on. This catches it at push time.
+#
+# The suite uses fakes and makes no network calls, so no API keys are needed
+# and nothing here can spend money on LLM calls or hit SEC EDGAR.
+
+name: check
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Cache the virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: poetry-${{ runner.os }}-py311-${{ hashFiles('poetry.lock') }}
+          restore-keys: poetry-${{ runner.os }}-py311-
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      # Tests first: a real failure should not be masked by a formatting nit.
+      - name: pytest
+        run: poetry run pytest hedge_fund -q
+
+      # Each lint runs even if an earlier one fails, so one push surfaces
+      # every problem instead of one per round trip.
+      - name: black
+        if: ${{ !cancelled() }}
+        run: poetry run black --check hedge_fund
+
+      - name: isort
+        if: ${{ !cancelled() }}
+        run: poetry run isort --check-only hedge_fund
+
+      - name: flake8
+        if: ${{ !cancelled() }}
+        run: poetry run flake8 hedge_fund
