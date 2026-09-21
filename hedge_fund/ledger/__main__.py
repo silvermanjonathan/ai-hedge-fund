@@ -17,6 +17,7 @@ from datetime import date
 from hedge_fund.config import apply_credentials
 from hedge_fund.data import open_data_client
 from hedge_fund.data.edgar import EdgarClient, EdgarError
+from hedge_fund.ledger.carry import carried_tickers, holders
 from hedge_fund.ledger.coverage import mandate_paths, staffed_schools
 from hedge_fund.ledger.history import (
     flips,
@@ -48,6 +49,21 @@ def main(argv: list[str] | None = None) -> None:
 
     p_ingest = sub.add_parser("ingest", help="log the new verdicts in one or more CycleRecord files")
     p_ingest.add_argument("records", nargs="+", help="record JSON files written by aihf --out")
+    p_ingest.add_argument(
+        "--screen",
+        metavar="TICKERS",
+        help="the tickers the screen produced, comma separated; anything else "
+        "in the record was carried (see hedge_fund/ledger/carry.py)",
+    )
+
+    p_carry = sub.add_parser(
+        "carried",
+        help="names a desk's schools still hold a directional view on, after they left the screen",
+    )
+    p_carry.add_argument("--screen", required=True, metavar="TICKERS", help="this week's screen, comma separated")
+    p_carry.add_argument("--school", action="append", required=True, help="a school on the desk; repeatable")
+    p_carry.add_argument("--since", metavar="YYYY-MM-DD", help="ignore positions formed before this date")
+    p_carry.add_argument("--explain", action="store_true", help="say which school holds each name, on stderr")
 
     p_score = sub.add_parser("scorecard", help="per-school, per-horizon forward performance")
     p_score.add_argument("--horizon", default="all", choices=["21", "63", "126", "all"])
@@ -111,8 +127,9 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command == "ingest":
         with open_data_client() as fd:
+            screen = args.screen.replace(",", " ").split() if args.screen else None
             for path in args.records:
-                result = ledger.ingest(path, fd)
+                result = ledger.ingest(path, fd, screen=screen)
                 print(f"{path}: {result}")
         print(f"ledger: {len(ledger)} verdicts in {ledger.path}")
         return
@@ -135,6 +152,19 @@ def main(argv: list[str] | None = None) -> None:
         if not args.json:
             where = ", ".join(p.name for p in paths) if paths else "none found"
             print(f"\nStaffing read from: {where}", file=sys.stderr)
+        return
+
+    if args.command == "carried":
+        screen = args.screen.replace(",", " ").split()
+        rows = ledger.rows()
+        names = carried_tickers(rows, schools=args.school, screen=screen, since=args.since)
+        print(",".join(names))  # stdout stays a clean ticker list for $(...)
+        if args.explain:
+            for name in names:
+                who = holders(rows, name, schools=args.school, since=args.since)
+                print(f"  carried {name}: held by {', '.join(who)}", file=sys.stderr)
+            if not names:
+                print("  nothing carried: every held name is still on the screen", file=sys.stderr)
         return
 
     if args.command == "flips":

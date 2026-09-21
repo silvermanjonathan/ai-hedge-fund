@@ -155,26 +155,49 @@ diff_universe quality "$QUALITY"
 diff_universe value "$VALUE"
 
 # 2. Desks, all at low effort. INFO logging so live calls are countable.
-run_desk() {  # name mandate tickers
-  local name=$1 mandate=$2 tickers=$3
+run_desk() {  # name mandate tickers screen
+  local name=$1 mandate=$2 tickers=$3 screen=$4
   local out="$RECORDS/$name-$DATE.json" err="$HOME_DIR/logs/$name-$DATE.log"
   poetry run python -c "import logging, sys; logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s', stream=sys.stderr); from hedge_fund.run import main; main()" \
-    "$mandate" --tickers "$tickers" --effort low --out "$out" > /dev/null 2> "$err"
+    "$mandate" --tickers "$tickers" --screen "$screen" --effort low --out "$out" > /dev/null 2> "$err"
   local live cached
   live=$(grep -c 'hedge_fund.llm.anthropic_client' "$err" || true)
   cached=$(poetry run python -c "import json,sys; r=json.load(open('$out')); print(sum(1 for s in r['strategies'] for x in s['signals'] if x['metadata'].get('cached')))")
   echo "$name: record $out | live calls=$live cached=$cached"
 }
-run_desk quality-desk    "$HOME_DIR/mandates/quality-desk.yaml"     "$QUALITY"
-run_desk value-desk      "$HOME_DIR/mandates/value-desk.yaml"       "$VALUE"
-run_desk resilience-check "$HOME_DIR/mandates/resilience-check.yaml" "$UNION"
+# Carried names: a school only re-reasons about a name in that week's
+# universe, so one that leaves the screen before its next 10-Q can never
+# flip. The exits are disproportionately the names where a flip was most
+# likely — a quality company drops out of the quality screen exactly when
+# its margins deteriorate — so held views are carried past a screen exit.
+# Costs nothing until a carried name actually files.
+carry() {  # schools... ; uses $SCREEN
+  local args=() s
+  for s in "$@"; do args+=(--school "$s"); done
+  poetry run aihf-ledger carried --screen "$SCREEN" "${args[@]}" "${SINCE_ARG[@]}" --explain
+}
+SCREEN=$QUALITY
+Q_CARRY=$(carry fundsmith akre quality_compounder fisher)
+SCREEN=$VALUE
+V_CARRY=$(carry dreman schloss klarman pabrai)
+SCREEN=$UNION
+R_CARRY=$(carry dalio_resilience)
+join() { printf '%s\n' "$1" "$2" | tr ',' '\n' | awk 'NF && !seen[$0]++' | paste -sd, -; }
+
+run_desk quality-desk    "$HOME_DIR/mandates/quality-desk.yaml"     "$(join "$QUALITY" "$Q_CARRY")" "$QUALITY"
+run_desk value-desk      "$HOME_DIR/mandates/value-desk.yaml"       "$(join "$VALUE" "$V_CARRY")"   "$VALUE"
+run_desk resilience-check "$HOME_DIR/mandates/resilience-check.yaml" "$(join "$UNION" "$R_CARRY")"  "$UNION"
 
 # 3. Ledger, candidates, scorecard.
 # Each run above already logged its own verdicts inline. This ingest is
 # deliberate belt-and-braces for an unattended job: it is idempotent
 # (keyed on school/ticker/snapshot_hash) so it normally reports
 # added=0, and it catches up if inline logging ever fails.
-poetry run aihf-ledger ingest "$RECORDS/quality-desk-$DATE.json" "$RECORDS/value-desk-$DATE.json" "$RECORDS/resilience-check-$DATE.json"
+# --screen per record, so the belt-and-braces ingest marks carried rows
+# the same way the inline one did.
+poetry run aihf-ledger ingest --screen "$QUALITY" "$RECORDS/quality-desk-$DATE.json"
+poetry run aihf-ledger ingest --screen "$VALUE" "$RECORDS/value-desk-$DATE.json"
+poetry run aihf-ledger ingest --screen "$UNION" "$RECORDS/resilience-check-$DATE.json"
 # Flips first: a school only changes its mind when a filing changes the
 # facts, so these are the week's research leads. Same-filing changes are
 # excluded — those come from editing a prompt and say nothing about a

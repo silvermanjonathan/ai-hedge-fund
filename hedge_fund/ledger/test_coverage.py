@@ -282,3 +282,27 @@ def test_rows_without_a_basis_report_unknown_not_zero(tmp_path):
     row.pop("basis", None)
     card = scorecard(_ledger(tmp_path, [row]), NoPrices(), "2026-12-01", horizons=(63,), staffed={"akre"})
     assert next(r.insufficient_share for r in card.rows if r.school == "akre") is None
+
+
+def test_a_carried_name_is_not_pooled_into_the_screens_universe_bar(tmp_path):
+    """A carried name is one a school still holds a view on after it left
+    the screen. Pooling it with the screen's names would benchmark the
+    school partly against its own past holdings, which is the one thing
+    the universe bar must not do."""
+    screen = [_dated("akre", f"S{i}", "2026-11-02") for i in range(4)]
+    for row in screen:
+        row["carried"] = False
+    gone = _dated("akre", "GONE", "2026-11-02")
+    gone["carried"] = True
+
+    card = scorecard(_ledger(tmp_path, screen + [gone]), NoPrices(), "2026-12-01", horizons=(63,), staffed={"akre"})
+    assert card.rows, "the school must still appear"
+
+
+def test_carried_rows_survive_a_ledger_written_before_the_flag_existed(tmp_path):
+    """Rows with no `carried` key read as not carried, which is the
+    behaviour before carrying existed."""
+    row = _dated("akre", "OLD", "2026-11-02")
+    row.pop("carried", None)
+    card = scorecard(_ledger(tmp_path, [row]), NoPrices(), "2026-12-01", horizons=(63,), staffed={"akre"})
+    assert next(r for r in card.rows if r.school == "akre") is not None

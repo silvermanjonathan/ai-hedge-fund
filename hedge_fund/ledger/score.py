@@ -278,12 +278,23 @@ def scorecard(
             raw[(r["key"], h)] = closes[h - 1][1] / r["entry_close"] - 1
             spy[(r["event_date"], h)] = spy_closes[h - 1][1] / r["spy_close"] - 1
 
-    # Universe bar: equal-weight mean raw return of every ticker the school saw on that desk that day.
-    groups: dict[tuple[str, str, str, int], list[float]] = defaultdict(list)
+    # Universe bar: equal-weight mean raw return of every ticker the school
+    # saw on that desk that day — with CARRIED names in their own group.
+    #
+    # A carried name is one the school still holds a directional view on
+    # after it left the screen. Pooling it with the screen's names would
+    # benchmark a school partly against its own past holdings, which is the
+    # one thing the universe bar must not do. Kept separate, a carried
+    # cohort is usually one or two names and therefore falls below
+    # MIN_UNIVERSE_COHORT, so carried verdicts get no universe bar at all.
+    # That is the honest answer: a name off the screen has no screen cohort
+    # to be compared with. It still scores against SPY, which is the
+    # comparison that matters for a flip.
+    groups: dict[tuple[str, str, bool, str, int], list[float]] = defaultdict(list)
     for r in rows:
         for h in horizons:
             if (r["key"], h) in raw:
-                groups[(r["school"], r["desk"], r["event_date"], h)].append(raw[(r["key"], h)])
+                groups[(r["school"], r["desk"], bool(r.get("carried")), r["event_date"], h)].append(raw[(r["key"], h)])
     universe_mean = {g: (sum(v) / len(v) if len(v) >= MIN_UNIVERSE_COHORT else None) for g, v in groups.items()}
 
     stats: dict[tuple[str, int], list[tuple[float, float, float]]] = defaultdict(
@@ -297,7 +308,7 @@ def scorecard(
             if (r["key"], h) not in raw:
                 continue
             excess = raw[(r["key"], h)] - spy[(r["event_date"], h)]
-            bar = universe_mean[(r["school"], r["desk"], r["event_date"], h)]
+            bar = universe_mean[(r["school"], r["desk"], bool(r.get("carried")), r["event_date"], h)]
             vs_universe = None if bar is None else direction * (raw[(r["key"], h)] - bar)
             stats[(r["school"], h)].append((direction * excess, (r.get("confidence") or 0.0) / 100.0, vs_universe))
 
