@@ -28,6 +28,7 @@ CLI reads. Humans click, machines write, the engine reads one thing.
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from datetime import date as _date
 from datetime import timedelta
@@ -45,8 +46,12 @@ from hedge_fund.data import (
     unsupported_model_names,
 )
 from hedge_fund.fund import Fund, load_spec, normalize_universe
+from hedge_fund.llm import DEFAULT_MODEL
 from hedge_fund.paths import ensure_mandates_dir, RECORDS_DIR
 from hedge_fund.pipeline import run_cycle
+from hedge_fund.pipeline.preflight import estimate, naive
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -119,6 +124,14 @@ def main() -> None:
         "--out",
         help=f"write an EXTRA copy of the record here. Every live cycle is "
         f"already saved to {RECORDS_DIR}/ whether or not this is passed",
+    )
+    parser.add_argument(
+        "--max-cost",
+        type=float,
+        default=None,
+        help="refuse to start if the estimated cost of this cycle exceeds this "
+        "many dollars (also HEDGE_FUND_MAX_COST). The estimate counts real "
+        "prompt-cache misses, so a week with no new filings estimates at $0",
     )
     parser.add_argument(
         "--no-ledger",
@@ -196,6 +209,8 @@ def main() -> None:
     broker = SimBroker(cash=spec.capital)
 
     with open_data_client() as fd:
+        if not _affordable(fund, args, universe, fd, console):
+            raise SystemExit(2)
         n_models = sum(len(staff) for _, staff in fund.strategies)
         with console.status(
             f"[cyan]{spec.name}: running one cycle as of {args.date} — "
@@ -234,6 +249,40 @@ def main() -> None:
     )
     if record.skipped:
         console.print(f"[dim]skipped: {', '.join(s.ticker for s in record.skipped)}[/]")
+
+
+def _affordable(fund, args, universe: list[str], data_client, console: Console) -> bool:
+    """Print what this cycle will cost, and stop if it is more than allowed.
+
+    The guard is against surprise rather than spend. A cycle that dies
+    part-way keeps every verdict it paid for, so the exposure was never the
+    money — it was expecting $0 and getting full price because something
+    invalidated a cache nobody mentioned. So the estimate counts real misses,
+    and when there are any it says where they came from.
+    """
+    ceiling = args.max_cost
+    if ceiling is None:
+        raw = os.environ.get("HEDGE_FUND_MAX_COST", "").strip()
+        ceiling = float(raw) if raw else None
+
+    try:
+        with console.status("[cyan]estimating cost…", spinner="dots"):
+            est = estimate(fund, args.date, universe, data_client)
+    except Exception as exc:
+        # Never let the estimate be the reason a run does not start.
+        logger.warning("preflight: falling back to the upper bound: %s", exc)
+        n_models = sum(len(staff) for _, staff in fund.strategies)
+        est = naive(len(universe), n_models, os.environ.get("HEDGE_FUND_LLM_MODEL", DEFAULT_MODEL))
+
+    console.print(f"[dim]{est.render()}[/]")
+    if ceiling is None or est.cost is None or est.cost <= ceiling:
+        return True
+    console.print(
+        f"[red]refusing to start: estimated ${est.cost:,.2f} exceeds the "
+        f"${ceiling:,.2f} limit. Raise it with --max-cost, or set "
+        f"HEDGE_FUND_MAX_COST.[/]"
+    )
+    return False
 
 
 def _log_verdicts(record, receipt: Path, args, console: Console) -> None:

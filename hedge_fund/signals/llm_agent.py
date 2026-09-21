@@ -47,6 +47,8 @@ and an unchanged snapshot never pays for a second LLM call.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from pathlib import Path
 
 from hedge_fund.data.protocol import DataClient
 from hedge_fund.features.snapshot import (
@@ -69,6 +71,31 @@ logger = logging.getLogger(__name__)
 
 # What the model must return; folded into Signal.value below.
 _SIGNAL_TO_SIGN = {"bullish": 1.0, "neutral": 0.0, "bearish": -1.0}
+
+
+@dataclass(frozen=True)
+class Preview:
+    """What one (school, ticker) call would cost, decided without calling."""
+
+    school: str
+    ticker: str
+    key: str | None = None
+    snapshot_hash: str | None = None
+    system: str | None = None
+    model: str | None = None
+    hit: bool = False
+    insufficient: bool = False  # would abstain on thin data; never billed
+    system_tokens: int = 0
+    user_tokens: int = 0
+    cache_dir: Path | None = None
+
+
+def _tokens(text: str) -> int:
+    """Rough token count. ~4 characters per token for English prose with
+    numbers; good to maybe 15%, which is well inside what a spend guard
+    needs. Only the INPUT side uses this — it is measured from the real
+    prompt text, not assumed."""
+    return len(text) // 4
 
 
 class LLMAgent(AlphaModel):
@@ -100,9 +127,7 @@ class LLMAgent(AlphaModel):
             return self._abstain(ticker, date, f"insufficient data: {exc}")
         # Any other data-layer exception (e.g. FDClientError) propagates.
 
-        system = self.get_system_prompt()
-        user = self.build_user_prompt(snapshot)
-        key = prompt_key(self.name, self._llm.model, system, user, effort=self._effort)
+        system, user, key = self._prompts(snapshot)
 
         cached = self._cache.get(key)
         if cached is not None and "parsed" in cached:
@@ -140,6 +165,44 @@ class LLMAgent(AlphaModel):
 
         self._cache.put(key, {**record, "parsed": parsed})
         return self._to_signal(ticker, date, parsed, key, snapshot, cached=False)
+
+    def preview(self, ticker: str, date: str, data_client: DataClient) -> "Preview":
+        """What predict() WOULD do, without calling the model.
+
+        The pre-flight cost estimate uses this to count real cache misses
+        instead of assuming every call is one — the difference between "this
+        run costs at most $6.84" and "this run costs $0.00 because nothing
+        has changed since last week".
+
+        It deliberately goes through the same _prompts() that predict() uses.
+        Recomputing the key alongside predict rather than with it would make
+        the estimate a second implementation of the cache key, free to drift
+        from the real one and wrong in exactly the situation the estimate
+        exists to catch.
+        """
+        try:
+            snapshot = self.build_snapshot(ticker, date, data_client)
+        except InsufficientData:
+            return Preview(school=self.name, ticker=ticker, insufficient=True, cache_dir=self._cache.directory)
+        system, user, key = self._prompts(snapshot)
+        return Preview(
+            school=self.name,
+            ticker=ticker,
+            key=key,
+            snapshot_hash=snapshot.content_hash,
+            system=system,
+            model=self._llm.model,
+            hit=self._cache.get(key) is not None,
+            system_tokens=_tokens(system),
+            user_tokens=_tokens(user),
+            cache_dir=self._cache.directory,
+        )
+
+    def _prompts(self, snapshot: FundamentalsSnapshot) -> tuple[str, str, str]:
+        """(system, user, cache key) for a snapshot. The single definition."""
+        system = self.get_system_prompt()
+        user = self.build_user_prompt(snapshot)
+        return system, user, prompt_key(self.name, self._llm.model, system, user, effort=self._effort)
 
     # ------------------------------------------------------------------
     # Subclass surface

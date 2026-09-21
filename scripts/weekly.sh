@@ -60,7 +60,8 @@ poetry run aihf-ledger scorecard --horizon 63 \
   --mandate "$HOME_DIR/mandates/value-desk.yaml" \
   --mandate "$HOME_DIR/mandates/resilience-check.yaml"
 
-# 4. Cost summary from the INFO lines (Fable 5.1 list prices), else call counts.
+# 4. Cost summary from the INFO lines. Rates come from hedge_fund.llm.pricing,
+# the same table the pre-flight estimate uses — not a second copy here.
 poetry run python - "$HOME_DIR/logs" "$DATE" <<'PY'
 import re, sys, glob
 logs, day = sys.argv[1], sys.argv[2]
@@ -68,7 +69,9 @@ i = o = cw = cr = n = 0
 for path in glob.glob(f"{logs}/*-desk-{day}.log") + glob.glob(f"{logs}/resilience-check-{day}.log"):
     for m in re.finditer(r"input_tokens=(\d+) output_tokens=(\d+) cache_creation_input_tokens=(\d+) cache_read_input_tokens=(\d+)", open(path).read()):
         n += 1; i += int(m[1]); o += int(m[2]); cw += int(m[3]); cr += int(m[4])
-cost = i * 10 / 1e6 + cw * 12.5 / 1e6 + cr * 0.25 / 1e6 + o * 50 / 1e6
+from hedge_fund.llm.pricing import price_for   # one copy of the rates
+p = price_for("claude-fable-5-1")
+cost = (i * p.input + cw * p.cache_write + cr * p.cache_read + o * p.output) / 1e6
 print(f"cost: {n} live calls, ~${cost:.2f} (in={i} out={o} cache_write={cw} cache_read={cr})" if n else "cost: 0 live calls (all cache hits), $0.00")
 PY
 # 5. Names whose verdicts trail a newer filing (EDGAR companyfacts lag).
