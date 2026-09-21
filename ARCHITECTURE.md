@@ -669,6 +669,42 @@ is still open:
    uses a tag we do not read" from "this business has no such line" from
    "this company has no debt" — and it abstains on all three.
 
+   **A prediction, recorded before the fix was built (2026-09-20).**
+
+   The sharpest number in the first widened run is klarman reporting 0%
+   `insufficient` on Financials against 42% everywhere else — six of nine
+   schools report 0% on Financials, which get a LOWER insufficient rate
+   (8%) and a HIGHER directional rate (45%) than everything else. The
+   schools already see the sector in the snapshot header, so this is not a
+   case of mistaking a blank for a low value. Fewer visible columns seem
+   to make the judgment feel easier rather than thinner.
+
+   The rendering change probably does not fix that, and may make it worse.
+   Marking three of a bank's columns `n/a` removes precisely the signal
+   ("half my legs are blank") that drove akre and fundsmith to flag
+   Financials at all. So:
+
+   | | Now | Predicted after | Reasoning |
+   |---|---:|---:|---|
+   | Financials, all schools | 8% | **5-10%** | `n/a` legitimises the blanks; no reason to abstain more |
+   | Non-financials, all schools | 12% | **12-18%** | `n/r` says "unknown, do not infer" more forcefully than `-` |
+   | akre on Financials | 17% | **falls** | its 6 rows likely flagged the blanks now marked `n/a` |
+   | fundsmith on Financials | 33% | **falls** | same |
+   | klarman on Financials | 0% | **stays 0%** | nothing in this change gives it a reason to hesitate |
+
+   **The headline prediction is that the gap widens rather than closes:**
+   Financials become more confidently scored, non-financials slightly less.
+   If that happens, the rendering fix improved honesty about missing data
+   and did not touch the cross-sector problem, and the next move is a
+   prompt or universe change rather than another data one.
+
+   One caveat that is not an escape hatch: klarman, dreman, pabrai and
+   schloss each have only 2 Financial rows, so their individual figures
+   are untestable at this sample size. The testable claims are the two
+   aggregate rows and the direction of akre's and fundsmith's moves. A
+   fair test of klarman needs the value screen to carry more Financials
+   than it does today.
+
 9. **Should a live run record its own verdicts?** See the assessment
    accompanying this branch: `aihf <mandate> --tickers` discards its
    CycleRecord unless `--out` is passed, so a hand-run desk produces paid
