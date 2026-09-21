@@ -61,7 +61,25 @@ on_exit() {
   if [ "$code" -ne 0 ]; then
     { echo "weekly run FAILED on $DATE (exit $code)"
       echo "log: $LOG"
-      echo "if exit was 2, a desk exceeded HEDGE_FUND_MAX_COST=$HEDGE_FUND_MAX_COST"
+      # The failure worth naming, because the pre-flight cannot see it.
+      # --max-cost measures what a run WILL cost; it knows nothing about
+      # what the account has left, so a run can estimate $1.87, pass the
+      # gate, and die on the first call against an exhausted Console
+      # usage limit. That happened on 2026-09-20. The SDK returns the
+      # reset date in the 400, so quote it rather than making the next
+      # reader find it in a traceback.
+      local limit
+      limit=$(grep -ho 'You have reached your specified API usage limits[^"}]*' \
+                "$HOME_DIR/logs/"*-"$DATE".log 2>/dev/null | head -1 | tr -d "'\"" || true)
+      if [ -n "$limit" ]; then
+        echo "CAUSE: Anthropic account usage limit reached — $limit"
+        echo "  (this is the Console cap on the account, NOT --max-cost;"
+        echo "   raise it in the Anthropic Console, or wait for the reset above)"
+      elif [ "$code" -eq 2 ]; then
+        echo "CAUSE: a desk exceeded HEDGE_FUND_MAX_COST=$HEDGE_FUND_MAX_COST"
+        echo "  (local pre-flight gate; raise AIHF_WEEKLY_MAX_COST if the"
+        echo "   universe grew, and re-derive per ARCHITECTURE.md §12)"
+      fi
     } > "$FAILED_MARKER"
     echo "== WEEKLY-RUN-FAILED $DATE exit=$code — see $LOG =="
   else
@@ -103,6 +121,38 @@ UNION=$( (tr ',' '\n' <<<"$QUALITY"; tr ',' '\n' <<<"$VALUE") | awk 'NF && !seen
 echo "quality: $QUALITY"
 echo "value:   $VALUE"
 echo "union:   $UNION"
+
+# Preset turnover, measured rather than estimated.
+#
+# The whole accrual timeline rests on how much the screens churn, and the
+# only estimate so far came from reasoning about the filters: fundamental
+# thresholds move on quarterly filings, so turnover "should" be near zero.
+# Then the quality screen went 55 -> 56 in five days. One name is not much,
+# but it is not zero, and the structural argument cannot tell the
+# difference. This accumulates the real series instead.
+UNIVERSE_STATE="$HOME_DIR/logs/universe"
+mkdir -p "$UNIVERSE_STATE"
+diff_universe() {  # preset current_csv
+  local preset=$1 current=$2 prev="$UNIVERSE_STATE/$1.txt"
+  printf '%s\n' "$current" | tr ',' '\n' | sort > "$UNIVERSE_STATE/.$preset.new"
+  if [ -f "$prev" ]; then
+    local added dropped
+    added=$(comm -13 "$prev" "$UNIVERSE_STATE/.$preset.new" | paste -sd, -)
+    dropped=$(comm -23 "$prev" "$UNIVERSE_STATE/.$preset.new" | paste -sd, -)
+    echo "turnover $preset: $(wc -l < "$prev" | tr -d ' ') -> $(wc -l < "$UNIVERSE_STATE/.$preset.new" | tr -d ' ')" \
+         "| added: ${added:-none} | dropped: ${dropped:-none}"
+    # One line per run, appended, so the series is greppable later.
+    echo "$DATE,$preset,$(wc -l < "$UNIVERSE_STATE/.$preset.new" | tr -d ' '),${added:-},${dropped:-}" \
+      >> "$UNIVERSE_STATE/turnover.csv"
+  else
+    echo "turnover $preset: first run, $(wc -l < "$UNIVERSE_STATE/.$preset.new" | tr -d ' ') names, no baseline yet"
+    echo "$DATE,$preset,$(wc -l < "$UNIVERSE_STATE/.$preset.new" | tr -d ' '),," >> "$UNIVERSE_STATE/turnover.csv"
+  fi
+  mv "$UNIVERSE_STATE/.$preset.new" "$prev"
+}
+[ -f "$UNIVERSE_STATE/turnover.csv" ] || echo "date,preset,size,added,dropped" > "$UNIVERSE_STATE/turnover.csv"
+diff_universe quality "$QUALITY"
+diff_universe value "$VALUE"
 
 # 2. Desks, all at low effort. INFO logging so live calls are countable.
 run_desk() {  # name mandate tickers
