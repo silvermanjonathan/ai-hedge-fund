@@ -23,7 +23,35 @@ SINCE_ARG=()
 # than set in ~/.hedge-fund/.env, which apply_credentials() loads into every
 # invocation. A manual seeding run must not inherit the weekly ceiling and
 # discover it as a refusal.
-export HEDGE_FUND_MAX_COST=${AIHF_WEEKLY_MAX_COST:-3.00}
+#
+# $10 is sized from the filing dates of all 78 names. Earnings cluster hard:
+# the busiest week in four years of history re-prices 34 of them, which is
+# 174 calls and about $4.67. A $3 ceiling would have refused that week and,
+# under `set -e`, aborted before the ingest — the gate becoming the outage.
+# $10 clears the observed peak twice over while still refusing a full
+# invalidation of all three desks (~$10.50), which is the runaway worth
+# catching.
+export HEDGE_FUND_MAX_COST=${AIHF_WEEKLY_MAX_COST:-10.00}
+
+# Failure has to reach a human. This script runs unattended from a
+# LaunchAgent, and `set -e` means a refused desk aborts everything after it
+# — including the ingest and the scorecard. Silently, into a log nobody
+# opens. So: leave a marker on any non-zero exit, and report any marker
+# left by an earlier run at the top of the next one.
+FAILED_MARKER="$HOME_DIR/logs/LAST-RUN-FAILED"
+on_exit() {
+  local code=$?
+  if [ "$code" -ne 0 ]; then
+    { echo "weekly run FAILED on $DATE (exit $code)"
+      echo "log: $LOG"
+      echo "if exit was 2, a desk exceeded HEDGE_FUND_MAX_COST=$HEDGE_FUND_MAX_COST"
+    } > "$FAILED_MARKER"
+    echo "== WEEKLY-RUN-FAILED $DATE exit=$code — see $LOG =="
+  else
+    rm -f "$FAILED_MARKER"
+  fi
+}
+trap on_exit EXIT
 LOG="$HOME_DIR/logs/weekly-$DATE.log"
 RECORDS="$HOME_DIR/records"
 mkdir -p "$HOME_DIR/logs" "$RECORDS"
@@ -31,6 +59,13 @@ exec > >(tee -a "$LOG") 2>&1
 
 cd "$REPO"
 echo "== weekly $DATE =="
+
+# Anything left behind by a previous run that died.
+if [ -f "$FAILED_MARKER" ]; then
+  echo "== WEEKLY-RUN-FAILED (earlier run) =="
+  sed 's/^/   /' "$FAILED_MARKER"
+  echo "== end of earlier failure =="
+fi
 
 # 1. Universes — the WHOLE screen, no --limit.
 #

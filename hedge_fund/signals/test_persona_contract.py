@@ -52,14 +52,14 @@ REQUIRED = {
     "ignore anything after that filing": "do not use any knowledge of anything that",
     "do not fabricate figures": "Do not invent numbers",
     "answer as JSON only": "Respond with JSON only",
-    "abstain on thin data": "If the data is insufficient to judge",
+    "abstain on thin data": "cannot support a call either way",
     "distinguish declining from not knowing": '"basis": "judged" | "insufficient"',
 }
 
 # All 18 carry this verbatim. Asserting the exact sentence, not just the
 # idea, keeps it from drifting into eighteen paraphrases that are hard to
 # compare when a school's scorecard looks off.
-ABSTAIN_CLAUSE = "- If the data is insufficient to judge, go neutral and set basis to"
+ABSTAIN_CLAUSE = 'go neutral and set basis to "insufficient"'
 
 
 def prompt_for(name: str) -> str:
