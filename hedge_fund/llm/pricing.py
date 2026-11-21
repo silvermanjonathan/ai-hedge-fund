@@ -1,6 +1,6 @@
 """What a call costs, for the pre-flight estimate. Estimates, not invoices.
 
-List prices as of September 2026, per million tokens. They are a guide for
+List prices as of November 2026, per million tokens. They are a guide for
 deciding whether to start a run, never an accounting record — a model whose
 price is not listed yields no estimate rather than a wrong one, and an
 unknown price must never be a reason to block a run.
@@ -25,6 +25,7 @@ class Price:
 
 
 PRICES: dict[str, Price] = {
+    "claude-fable-5-2": Price(input=8.0, output=40.0, cache_write=10.0, cache_read=0.20),
     "claude-fable-5-1": Price(input=10.0, output=50.0, cache_write=12.5, cache_read=0.25),
 }
 

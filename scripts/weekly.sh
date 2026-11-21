@@ -223,8 +223,10 @@ i = o = cw = cr = n = 0
 for path in glob.glob(f"{logs}/*-desk-{day}.log") + glob.glob(f"{logs}/resilience-check-{day}.log"):
     for m in re.finditer(r"input_tokens=(\d+) output_tokens=(\d+) cache_creation_input_tokens=(\d+) cache_read_input_tokens=(\d+)", open(path).read()):
         n += 1; i += int(m[1]); o += int(m[2]); cw += int(m[3]); cr += int(m[4])
+import os
+from hedge_fund.llm.client import DEFAULT_MODEL
 from hedge_fund.llm.pricing import price_for   # one copy of the rates
-p = price_for("claude-fable-5-1")
+p = price_for(os.environ.get("HEDGE_FUND_LLM_MODEL") or DEFAULT_MODEL)
 cost = (i * p.input + cw * p.cache_write + cr * p.cache_read + o * p.output) / 1e6
 print(f"cost: {n} live calls, ~${cost:.2f} (in={i} out={o} cache_write={cw} cache_read={cr})" if n else "cost: 0 live calls (all cache hits), $0.00")
 PY

@@ -28,7 +28,7 @@ from hedge_fund.llm.registry import (
     SUPPORTED_PROVIDERS,
 )
 
-DEFAULT_MODEL = "claude-fable-5-1"
+DEFAULT_MODEL = "claude-fable-5-2"
 # How hard an Anthropic model thinks: low, medium, high, xhigh, max.
 DEFAULT_EFFORT = "high"
 

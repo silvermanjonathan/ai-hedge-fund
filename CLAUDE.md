@@ -13,7 +13,8 @@
   data-layer errors and any transport, auth, quota or timeout failure from
   the provider. The default is propagate: an abstention must mean something
   was asked and no view came back, never that nobody asked.
-- Default LLM: claude-fable-5-1 via the anthropic SDK. Effort via
+- Default LLM: claude-fable-5-2 via the anthropic SDK (switched from
+  claude-fable-5-1 on 2026-11-21; the verdict cache is keyed on the model). Effort via
   HEDGE_FUND_LLM_EFFORT or --effort. Other providers stay on LangChain.
 - Data source: HEDGE_FUND_DATA=free|fd (--data), default free. free = EDGAR
   companyfacts (first-reported values; filing_date is the fact's `filed`)
